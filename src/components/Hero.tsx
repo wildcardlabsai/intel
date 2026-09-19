@@ -9,8 +9,8 @@ export default function Hero() {
     >
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
-        src="https://images.unsplash.com/photo-1506744038136-46273834b3fb?q=80&w=2000&auto=format&fit=crop"
-        alt="Mountains and a lake in the Welsh countryside"
+        src="/images/hero-valley.webp"
+        alt="Misty mountain valley with a river at sunset"
         className="absolute inset-0 -z-20 h-full w-full object-cover"
       />
       <div
