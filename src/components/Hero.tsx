@@ -1,44 +1,55 @@
 import Header from "@/components/Header";
 import RegisterButton from "@/components/RegisterButton";
-import WelshLandscape from "@/components/WelshLandscape";
 
 export default function Hero() {
   return (
-    <section id="home" className="relative isolate overflow-hidden">
-      <div className="absolute inset-0 -z-20">
-        <WelshLandscape className="h-full w-full" />
-      </div>
-      <div className="absolute inset-0 -z-10 bg-gradient-to-b from-ink-900/55 via-ink-900/25 to-ink-900/70" />
-      <div className="absolute inset-0 -z-10 bg-gradient-to-r from-ink-900/60 via-transparent to-transparent" />
+    <section
+      id="home"
+      className="relative flex min-h-[85vh] items-center overflow-hidden px-6 pb-20 pt-32 text-white lg:min-h-[90vh] lg:px-12"
+    >
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src="https://images.unsplash.com/photo-1506744038136-46273834b3fb?q=80&w=2000&auto=format&fit=crop"
+        alt="Mountains and a lake in the Welsh countryside"
+        className="absolute inset-0 -z-20 h-full w-full object-cover"
+      />
+      <div
+        className="absolute inset-0 -z-10"
+        style={{
+          backgroundImage:
+            "linear-gradient(180deg, rgba(16, 42, 35, 0.45) 0%, rgba(16, 42, 35, 0.75) 100%)",
+        }}
+      />
 
       <Header />
 
-      <div className="relative mx-auto flex min-h-[760px] max-w-[1400px] flex-col justify-end px-6 pb-20 pt-40 sm:px-10 sm:pb-24 lg:min-h-[820px]">
-        <div className="flex items-end justify-between gap-10">
-          <div className="max-w-2xl animate-fade-up">
-            <h1 className="text-[2.6rem] font-extrabold leading-[1.08] tracking-tight text-white sm:text-6xl lg:text-[4rem]">
-              Know what&apos;s
-              <br />
-              happening in Wales
-            </h1>
-            <p className="mt-6 max-w-lg text-base leading-relaxed text-cream/90 sm:text-lg">
-              Companies. Contracts. Planning. Funding.
-              <br className="hidden sm:block" /> Development. All in one
-              place.
+      <div className="relative mx-auto grid w-full max-w-7xl grid-cols-1 items-end gap-8 lg:grid-cols-12">
+        <div className="max-w-2xl space-y-6 lg:col-span-8">
+          <h1 className="text-4xl font-bold leading-[1.1] tracking-tight sm:text-5xl lg:text-6xl">
+            Know what&rsquo;s
+            <br className="hidden sm:inline" /> happening in Wales
+          </h1>
+
+          <p className="text-lg font-normal leading-relaxed text-emerald-50/90 sm:text-xl">
+            Companies. Contracts. Planning. Funding.
+            <br className="hidden sm:inline" /> Development. All in one place.
+          </p>
+
+          <div className="space-y-3 pt-4">
+            <RegisterButton variant="cream" />
+            <p className="text-xs font-light text-emerald-100/70 sm:text-sm">
+              Be the first to know when we launch.
             </p>
-
-            <div className="mt-9 flex flex-col items-start gap-4">
-              <RegisterButton variant="cream" />
-              <p className="text-sm text-cream/75">
-                Be the first to know when we launch.
-              </p>
-            </div>
           </div>
+        </div>
 
-          <div className="hidden shrink-0 border-l border-cream/30 pl-6 text-right text-sm font-medium leading-relaxed text-cream/85 lg:block">
-            <p>Real data.</p>
-            <p>Deeper insights.</p>
-            <p>A stronger Wales.</p>
+        <div className="hidden lg:col-span-4 lg:block lg:text-right">
+          <div className="border-l-2 border-emerald-400/30 py-1 pl-4 text-lg font-normal leading-snug text-emerald-100/80 sm:text-xl lg:border-l-0 lg:border-r-2 lg:pl-0 lg:pr-6">
+            Real data.
+            <br />
+            Deeper insights.
+            <br />
+            A stronger Wales.
           </div>
         </div>
       </div>

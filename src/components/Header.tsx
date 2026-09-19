@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { Menu, X } from "lucide-react";
 import RegisterButton from "@/components/RegisterButton";
 
 const NAV_LINKS = [
@@ -17,74 +16,69 @@ export default function Header() {
   const [menuOpen, setMenuOpen] = useState(false);
 
   return (
-    <header className="absolute inset-x-0 top-0 z-40">
-      <div className="mx-auto flex max-w-[1400px] items-center justify-between gap-6 px-6 py-6 sm:px-10">
-        <a href="#home" className="text-cream">
-          <span className="block text-xl font-extrabold leading-[1.15] tracking-tight">
+    <header className="absolute inset-x-0 top-0 z-40 px-6 pb-6 pt-6 text-white lg:px-12">
+      <div className="mx-auto flex max-w-7xl items-center justify-between">
+        <a href="#home" className="group flex flex-col focus:outline-none">
+          <span className="text-xl font-bold leading-none tracking-tight text-white group-hover:opacity-90 md:text-2xl">
             Cymru
           </span>
-          <span className="block text-xl font-extrabold leading-[1.15] tracking-tight">
+          <span className="text-xl font-bold leading-none tracking-tight text-white group-hover:opacity-90 md:text-2xl">
             Intelligence
           </span>
-          <span className="mt-1 block text-[11px] font-medium tracking-wide text-cream/75">
+          <span className="mt-1 text-[11px] font-normal tracking-wide text-emerald-100/70 md:text-xs">
             A clearer view of a stronger Wales
           </span>
         </a>
 
-        <nav className="hidden items-center gap-8 lg:flex">
+        <nav className="hidden items-center gap-8 text-sm font-medium text-white/90 md:flex">
           {NAV_LINKS.map((link) => (
-            <a
-              key={link.label}
-              href={link.href}
-              className="text-sm font-medium text-cream/90 transition-colors hover:text-white"
-            >
+            <a key={link.label} href={link.href} className="transition-colors hover:text-white">
               {link.label}
             </a>
           ))}
         </nav>
 
-        <div className="hidden lg:block">
-          <RegisterButton variant="cream" />
-        </div>
+        <div className="flex items-center gap-4">
+          <RegisterButton
+            variant="dark"
+            className="hidden rounded-md px-5 py-2.5 text-sm sm:inline-flex"
+            showArrow={false}
+          />
 
-        <button
-          type="button"
-          onClick={() => setMenuOpen(true)}
-          aria-label="Open menu"
-          className="text-cream lg:hidden"
-        >
-          <Menu className="h-7 w-7" />
-        </button>
+          <button
+            type="button"
+            onClick={() => setMenuOpen((v) => !v)}
+            aria-label="Toggle navigation"
+            className="rounded-md p-2 text-white focus:outline-none md:hidden"
+          >
+            <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              {menuOpen ? (
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              ) : (
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+              )}
+            </svg>
+          </button>
+        </div>
       </div>
 
       {menuOpen && (
-        <div className="fixed inset-0 z-50 flex flex-col bg-green-900 px-6 py-6 text-cream lg:hidden">
-          <div className="flex items-center justify-between">
-            <span className="text-lg font-extrabold">Cymru Intelligence</span>
-            <button
-              type="button"
+        <div className="absolute inset-x-0 top-full space-y-4 border-b border-white/10 bg-green-900/95 px-6 py-6 shadow-xl backdrop-blur-md md:hidden">
+          {NAV_LINKS.map((link) => (
+            <a
+              key={link.label}
+              href={link.href}
               onClick={() => setMenuOpen(false)}
-              aria-label="Close menu"
+              className="block font-medium text-white/90 hover:text-white"
             >
-              <X className="h-7 w-7" />
-            </button>
-          </div>
-          <nav className="mt-12 flex flex-col gap-6">
-            {NAV_LINKS.map((link) => (
-              <a
-                key={link.label}
-                href={link.href}
-                onClick={() => setMenuOpen(false)}
-                className="text-2xl font-semibold"
-              >
-                {link.label}
-              </a>
-            ))}
-          </nav>
-          <div className="mt-auto">
+              {link.label}
+            </a>
+          ))}
+          <div onClick={() => setMenuOpen(false)}>
             <RegisterButton
               variant="cream"
-              className="w-full justify-center"
+              className="w-full justify-center rounded-md py-3 text-sm"
+              showArrow={false}
             />
           </div>
         </div>

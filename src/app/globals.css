@@ -4,28 +4,32 @@
   --color-ink-900: #10221e;
   --color-green-900: #102a23;
   --color-green-800: #183a30;
-  --color-green-700: #234c3f;
+  --color-slate: #132822;
   --color-cream: #f4f3ec;
-  --color-cream-soft: #eeece2;
+  --color-card: #fcfbf7;
   --color-white: #ffffff;
   --color-muted: #66736d;
   --color-border: #d9ddd5;
   --color-border-dark: rgba(244, 243, 236, 0.18);
-  --color-accent: #c7d0b8;
+  --color-cream-button: #cad6cc;
+  --color-cream-hover: #b9c7bc;
+  --color-accent-green: #326052;
 }
 
 @theme inline {
   --color-ink-900: var(--color-ink-900);
   --color-green-900: var(--color-green-900);
   --color-green-800: var(--color-green-800);
-  --color-green-700: var(--color-green-700);
+  --color-slate: var(--color-slate);
   --color-cream: var(--color-cream);
-  --color-cream-soft: var(--color-cream-soft);
+  --color-card: var(--color-card);
   --color-muted: var(--color-muted);
   --color-border: var(--color-border);
   --color-border-dark: var(--color-border-dark);
-  --color-accent: var(--color-accent);
-  --font-sans: var(--font-manrope);
+  --color-cream-button: var(--color-cream-button);
+  --color-cream-hover: var(--color-cream-hover);
+  --color-accent-green: var(--color-accent-green);
+  --font-sans: var(--font-jakarta);
 }
 
 html {
@@ -35,7 +39,7 @@ html {
 body {
   background: var(--color-cream);
   color: var(--color-ink-900);
-  font-family: var(--font-manrope), ui-sans-serif, system-ui, sans-serif;
+  font-family: var(--font-jakarta), var(--font-inter), ui-sans-serif, system-ui, sans-serif;
 }
 
 @keyframes fade-up {
@@ -70,11 +74,11 @@ body {
     opacity: 1;
   }
   50% {
-    transform: scale(1.18);
-    opacity: 0.85;
+    transform: scale(1.3);
+    opacity: 0.75;
   }
 }
 
 .animate-marker {
-  animation: marker-pulse 3.4s ease-in-out infinite;
+  animation: marker-pulse 2.5s ease-in-out infinite;
 }

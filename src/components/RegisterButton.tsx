@@ -1,22 +1,14 @@
 "use client";
 
-import { ArrowRight } from "lucide-react";
 import { useRegisterInterest } from "@/context/RegisterInterestContext";
 
-type Variant = "cream" | "outline-dark" | "outline-light" | "text-dark" | "text-light";
+type Variant = "cream" | "dark";
 
 const variantClasses: Record<Variant, string> = {
   cream:
-    "bg-[#eef0e4] text-ink-900 hover:bg-white",
-  "outline-dark":
-    "bg-green-900 text-cream hover:bg-green-800 border border-green-900",
-  "outline-light":
-    "bg-transparent text-cream border border-cream/40 hover:bg-cream/10",
-  "text-dark": "text-ink-900 hover:text-green-800",
-  "text-light": "text-cream hover:text-white",
+    "bg-cream-button text-ink-900 hover:bg-cream-hover shadow-md",
+  dark: "bg-green-900 text-white hover:bg-green-800 border border-white/20 shadow-sm",
 };
-
-const isTextVariant = (v: Variant) => v === "text-dark" || v === "text-light";
 
 export default function RegisterButton({
   variant = "cream",
@@ -31,18 +23,23 @@ export default function RegisterButton({
 }) {
   const { openModal } = useRegisterInterest();
 
-  const base = isTextVariant(variant)
-    ? "inline-flex items-center gap-2 font-semibold transition-colors duration-200"
-    : "inline-flex items-center gap-2 rounded-full px-6 py-3 text-sm font-semibold tracking-wide transition-all duration-200 hover:gap-3";
-
   return (
     <button
       type="button"
       onClick={openModal}
-      className={`${base} ${variantClasses[variant]} ${className}`}
+      className={`group inline-flex items-center justify-center gap-3 rounded-md px-6 py-3.5 text-base font-semibold transition-all duration-200 ${variantClasses[variant]} ${className}`}
     >
-      {label}
-      {showArrow && <ArrowRight className="h-4 w-4" strokeWidth={2.25} />}
+      <span>{label}</span>
+      {showArrow && (
+        <svg
+          className="h-4 w-4 transform transition-transform group-hover:translate-x-1"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
+        </svg>
+      )}
     </button>
   );
 }
