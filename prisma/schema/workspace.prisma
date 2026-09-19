@@ -1,0 +1,191 @@
+// ---------------------------------------------------------------------------
+// User workspace: saved items, alerts, reports and editorial insights
+// ---------------------------------------------------------------------------
+
+enum EntityType {
+  COMPANY
+  PLANNING
+  PROCUREMENT
+  FUNDING
+  JOB
+  INFRASTRUCTURE
+}
+
+enum AlertFrequency {
+  IMMEDIATE
+  DAILY
+  WEEKLY
+}
+
+enum ReportType {
+  COMPANY
+  REGIONAL
+  SECTOR
+  PLANNING
+  PROCUREMENT
+  FUNDING
+}
+
+enum ReportStatus {
+  QUEUED
+  GENERATING
+  READY
+  FAILED
+}
+
+enum ExportFormat {
+  PDF
+  CSV
+  XLSX
+}
+
+enum InsightStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+model SavedCompany {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  companyId String   @map("company_id")
+  notes     String?
+  tags      String[] @default([])
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, companyId])
+  @@index([companyId])
+  @@map("saved_companies")
+}
+
+model SavedSearch {
+  id         String     @id @default(uuid())
+  userId     String     @map("user_id")
+  name       String
+  entityType EntityType
+  query      String?
+  filters    Json       @default("{}")
+  createdAt  DateTime   @default(now()) @map("created_at")
+  updatedAt  DateTime   @updatedAt @map("updated_at")
+
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("saved_searches")
+}
+
+model Alert {
+  id          String         @id @default(uuid())
+  userId      String         @map("user_id")
+  name        String
+  entityType  EntityType
+  query       String?
+  filters     Json           @default("{}")
+  frequency   AlertFrequency @default(DAILY)
+  emailEnabled Boolean       @default(true) @map("email_enabled")
+  inAppEnabled Boolean       @default(true) @map("in_app_enabled")
+  isActive    Boolean        @default(true) @map("is_active")
+  lastRunAt   DateTime?      @map("last_run_at")
+  nextRunAt   DateTime?      @map("next_run_at")
+  /// Highest entity createdAt already notified on, so runs never re-notify.
+  watermark   DateTime?
+  matchCount  Int            @default(0) @map("match_count")
+  createdAt   DateTime       @default(now()) @map("created_at")
+  updatedAt   DateTime       @updatedAt @map("updated_at")
+
+  user        User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  events      AlertEvent[]
+
+  @@index([userId])
+  @@index([isActive, nextRunAt])
+  @@map("alerts")
+}
+
+model AlertEvent {
+  id         String     @id @default(uuid())
+  alertId    String     @map("alert_id")
+  entityType EntityType
+  entityId   String     @map("entity_id")
+  title      String
+  summary    String?
+  url        String?
+  metadata   Json       @default("{}")
+  createdAt  DateTime   @default(now()) @map("created_at")
+  notifiedAt DateTime?  @map("notified_at")
+
+  alert      Alert      @relation(fields: [alertId], references: [id], onDelete: Cascade)
+
+  @@unique([alertId, entityType, entityId])
+  @@index([alertId, createdAt])
+  @@map("alert_events")
+}
+
+model Report {
+  id             String       @id @default(uuid())
+  userId         String       @map("user_id")
+  organisationId String?      @map("organisation_id")
+  type           ReportType
+  title          String
+  params         Json         @default("{}")
+  status         ReportStatus @default(QUEUED)
+  /// Snapshot of the figures the report was generated from, so a downloaded
+  /// report always matches what the user saw.
+  data           Json?
+  dataAsOf       DateTime?    @map("data_as_of")
+  sourcesUsed    String[]     @default([]) @map("sources_used")
+  error          String?
+  createdAt      DateTime     @default(now()) @map("created_at")
+  completedAt    DateTime?    @map("completed_at")
+
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organisation   Organisation? @relation(fields: [organisationId], references: [id], onDelete: SetNull)
+  exports        ReportExport[]
+
+  @@index([userId, createdAt])
+  @@map("reports")
+}
+
+model ReportExport {
+  id          String       @id @default(uuid())
+  reportId    String       @map("report_id")
+  format      ExportFormat
+  storagePath String?      @map("storage_path")
+  sizeBytes   Int?         @map("size_bytes")
+  rowCount    Int?         @map("row_count")
+  createdAt   DateTime     @default(now()) @map("created_at")
+  expiresAt   DateTime?    @map("expires_at")
+
+  report      Report       @relation(fields: [reportId], references: [id], onDelete: Cascade)
+
+  @@index([reportId])
+  @@map("report_exports")
+}
+
+/// Editorial insights. `queries` records the exact database queries behind
+/// every figure quoted, so published statistics are reproducible.
+model Insight {
+  id           String        @id @default(uuid())
+  slug         String        @unique
+  title        String
+  category     String
+  summary      String?
+  bodyMarkdown String?       @map("body_markdown")
+  heroImageUrl String?       @map("hero_image_url")
+  status       InsightStatus @default(DRAFT)
+  authorUserId String?       @map("author_user_id")
+  dataAsOf     DateTime?     @map("data_as_of")
+  queries      Json          @default("[]")
+  metrics      Json          @default("{}")
+  sourcesUsed  String[]      @default([]) @map("sources_used")
+  publishedAt  DateTime?     @map("published_at")
+  createdAt    DateTime      @default(now()) @map("created_at")
+  updatedAt    DateTime      @updatedAt @map("updated_at")
+
+  author       User?         @relation(fields: [authorUserId], references: [id], onDelete: SetNull)
+
+  @@index([status, publishedAt])
+  @@map("insights")
+}

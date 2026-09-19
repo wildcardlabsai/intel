@@ -1,0 +1,151 @@
+// ---------------------------------------------------------------------------
+// Planning applications
+//
+// Welsh planning data is fragmented across 25 planning authorities (22 unitary
+// authorities plus 3 national park authorities). Each authority is modelled as
+// its own connector so an authority with no usable structured feed can be
+// marked UNAVAILABLE rather than being faked.
+// ---------------------------------------------------------------------------
+
+enum PlanningStatus {
+  SUBMITTED
+  VALIDATED
+  PENDING
+  UNDER_CONSIDERATION
+  APPROVED
+  APPROVED_WITH_CONDITIONS
+  REFUSED
+  WITHDRAWN
+  APPEAL
+  DECIDED
+  UNKNOWN
+}
+
+enum PlanningCategory {
+  RESIDENTIAL
+  COMMERCIAL
+  INDUSTRIAL
+  RETAIL
+  ENERGY
+  INFRASTRUCTURE
+  LEISURE
+  AGRICULTURAL
+  MIXED_USE
+  CHANGE_OF_USE
+  OTHER
+  UNKNOWN
+}
+
+/// One row per planning authority, carrying the connector state for that
+/// authority. `dataSourceId` links to the registry entry shown in admin.
+model PlanningAuthority {
+  id               String           @id @default(uuid())
+  name             String
+  slug             String           @unique
+  localAuthorityId String?          @map("local_authority_id")
+  dataSourceId     String?          @map("data_source_id")
+  /// Key of the parser implementation, e.g. "idox", "ocella", "arcgis".
+  connectorKey     String?          @map("connector_key")
+  portalUrl        String?          @map("portal_url")
+  searchUrl        String?          @map("search_url")
+  dataFormat       String?          @map("data_format")
+  licence          String?
+  status           DataSourceStatus @default(UNAVAILABLE)
+  statusMessage    String?          @map("status_message")
+  lastSuccessAt    DateTime?        @map("last_success_at")
+  lastErrorAt      DateTime?        @map("last_error_at")
+  lastError        String?          @map("last_error")
+  createdAt        DateTime         @default(now()) @map("created_at")
+  updatedAt        DateTime         @updatedAt @map("updated_at")
+
+  localAuthority   LocalAuthority?  @relation(fields: [localAuthorityId], references: [id], onDelete: SetNull)
+  dataSource       DataSource?      @relation(fields: [dataSourceId], references: [id], onDelete: SetNull)
+  applications     PlanningApplication[]
+
+  @@index([status])
+  @@map("planning_authorities")
+}
+
+model PlanningApplication {
+  id               String           @id @default(uuid())
+  /// Authority's own application reference, e.g. "24/01234/FUL".
+  reference        String
+  authorityId      String           @map("authority_id")
+  localAuthorityId String?          @map("local_authority_id")
+
+  siteAddress      String?          @map("site_address")
+  postcode         String?
+  latitude         Float?
+  longitude        Float?
+  easting          Int?
+  northing         Int?
+
+  description      String?
+  applicationType  String?          @map("application_type")
+  category         PlanningCategory @default(UNKNOWN)
+  status           PlanningStatus   @default(UNKNOWN)
+  decision         String?
+
+  submittedOn      DateTime?        @map("submitted_on")
+  validatedOn      DateTime?        @map("validated_on")
+  consultationEndsOn DateTime?      @map("consultation_ends_on")
+  decidedOn        DateTime?        @map("decided_on")
+  appealDecidedOn  DateTime?        @map("appeal_decided_on")
+
+  applicantName    String?          @map("applicant_name")
+  applicantNormalisedName String?   @map("applicant_normalised_name")
+  agentName        String?          @map("agent_name")
+  agentNormalisedName String?       @map("agent_normalised_name")
+  /// Entity resolution result — the applicant matched to a known company.
+  resolvedCompanyId String?         @map("resolved_company_id")
+  resolutionConfidence Float?       @map("resolution_confidence")
+
+  /// Only populated when the authority publishes it. Never estimated.
+  dwellingCount    Int?             @map("dwelling_count")
+  floorSpaceSqm    Float?           @map("floor_space_sqm")
+
+  source           String
+  sourceId         String           @map("source_id")
+  sourceUrl        String?          @map("source_url")
+  rawRecordId      String?          @map("raw_record_id")
+  firstSeenAt      DateTime         @default(now()) @map("first_seen_at")
+  lastSeenAt       DateTime         @default(now()) @map("last_seen_at")
+  lastUpdatedAt    DateTime         @default(now()) @map("last_updated_at")
+  sourceUpdatedAt  DateTime?        @map("source_updated_at")
+  createdAt        DateTime         @default(now()) @map("created_at")
+  updatedAt        DateTime         @updatedAt @map("updated_at")
+
+  authority        PlanningAuthority @relation(fields: [authorityId], references: [id], onDelete: Cascade)
+  localAuthority   LocalAuthority?   @relation(fields: [localAuthorityId], references: [id], onDelete: SetNull)
+  resolvedCompany  Company?          @relation(fields: [resolvedCompanyId], references: [id], onDelete: SetNull)
+  documents        PlanningDocument[]
+
+  @@unique([authorityId, reference])
+  @@unique([source, sourceId])
+  @@index([status, submittedOn])
+  @@index([localAuthorityId])
+  @@index([postcode])
+  @@index([latitude, longitude])
+  @@index([resolvedCompanyId])
+  @@index([applicantNormalisedName])
+  @@map("planning_applications")
+}
+
+model PlanningDocument {
+  id            String    @id @default(uuid())
+  applicationId String    @map("application_id")
+  documentId    String    @map("document_id")
+  title         String?
+  documentType  String?   @map("document_type")
+  url           String
+  publishedOn   DateTime? @map("published_on")
+
+  source        String
+  firstSeenAt   DateTime  @default(now()) @map("first_seen_at")
+  lastSeenAt    DateTime  @default(now()) @map("last_seen_at")
+
+  application   PlanningApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  @@unique([applicationId, documentId])
+  @@map("planning_documents")
+}

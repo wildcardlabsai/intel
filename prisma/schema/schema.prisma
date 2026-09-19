@@ -1,0 +1,14 @@
+// Cymru Intelligence — database schema
+//
+// Connection URLs live in prisma.config.ts (Prisma 7 requirement).
+// The client is generated into src/generated/prisma and is instantiated with
+// the node-postgres driver adapter in src/lib/db/prisma.ts.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}

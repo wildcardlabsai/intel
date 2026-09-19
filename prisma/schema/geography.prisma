@@ -1,0 +1,120 @@
+// ---------------------------------------------------------------------------
+// Geography and sector reference data
+// ---------------------------------------------------------------------------
+
+enum WelshRegion {
+  NORTH_WALES
+  MID_WALES
+  WEST_WALES
+  SOUTH_WALES
+  SOUTH_EAST_WALES
+  UNKNOWN
+}
+
+enum LocationType {
+  COUNTRY
+  REGION
+  LOCAL_AUTHORITY
+  TOWN
+  POSTCODE_DISTRICT
+}
+
+/// Generic place hierarchy used for filters and breadcrumbs.
+model Location {
+  id         String       @id @default(uuid())
+  name       String
+  slug       String       @unique
+  type       LocationType
+  /// ONS GSS code where one exists.
+  code       String?
+  parentId   String?      @map("parent_id")
+  region     WelshRegion?
+  latitude   Float?
+  longitude  Float?
+  createdAt  DateTime     @default(now()) @map("created_at")
+  updatedAt  DateTime     @updatedAt @map("updated_at")
+
+  parent     Location?    @relation("LocationHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
+  children   Location[]   @relation("LocationHierarchy")
+
+  @@unique([type, code])
+  @@index([parentId])
+  @@index([type])
+  @@map("locations")
+}
+
+/// The 22 Welsh unitary authorities (plus any others we ingest data for).
+model LocalAuthority {
+  id                String      @id @default(uuid())
+  name              String
+  welshName         String?     @map("welsh_name")
+  slug              String      @unique
+  /// ONS GSS code, e.g. W06000015 for Cardiff.
+  gssCode           String      @unique @map("gss_code")
+  region            WelshRegion @default(UNKNOWN)
+  websiteUrl        String?     @map("website_url")
+  planningPortalUrl String?     @map("planning_portal_url")
+  centroidLat       Float?      @map("centroid_lat")
+  centroidLng       Float?      @map("centroid_lng")
+  population        Int?
+  createdAt         DateTime    @default(now()) @map("created_at")
+  updatedAt         DateTime    @updatedAt @map("updated_at")
+
+  companies            Company[]
+  planningAuthorities  PlanningAuthority[]
+  planningApplications PlanningApplication[]
+  procurementNotices   ProcurementNotice[]
+  infrastructure       InfrastructureProject[]
+  jobs                 JobPosting[]
+
+  @@index([region])
+  @@map("local_authorities")
+}
+
+/// High level sector taxonomy, mapped from SIC codes.
+model Sector {
+  id        String   @id @default(uuid())
+  code      String   @unique
+  name      String
+  slug      String   @unique
+  parentId  String?  @map("parent_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  parent    Sector?  @relation("SectorHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
+  children  Sector[] @relation("SectorHierarchy")
+  sicCodes  SicCode[]
+  companies Company[]
+
+  @@index([parentId])
+  @@map("sectors")
+}
+
+/// UK SIC 2007 codes as published by Companies House.
+model SicCode {
+  id          String   @id @default(uuid())
+  code        String   @unique
+  description String
+  sectorId    String?  @map("sector_id")
+
+  sector      Sector?  @relation(fields: [sectorId], references: [id], onDelete: SetNull)
+  companies   CompanyIndustry[]
+
+  @@index([sectorId])
+  @@map("sic_codes")
+}
+
+/// Cache for geocoded addresses so we never re-geocode the same string and can
+/// respect provider rate limits.
+model GeocodeCache {
+  id         String   @id @default(uuid())
+  queryHash  String   @unique @map("query_hash")
+  query      String
+  latitude   Float?
+  longitude  Float?
+  precision  String?
+  provider   String
+  hit        Boolean  @default(true)
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@map("geocode_cache")
+}

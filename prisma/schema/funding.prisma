@@ -1,0 +1,193 @@
+// ---------------------------------------------------------------------------
+// Funding, jobs and infrastructure
+// ---------------------------------------------------------------------------
+
+enum FundingStatus {
+  UPCOMING
+  OPEN
+  CLOSING_SOON
+  CLOSED
+  ONGOING
+  UNKNOWN
+}
+
+enum FundingType {
+  GRANT
+  LOAN
+  EQUITY
+  TAX_RELIEF
+  VOUCHER
+  COMPETITION
+  SUPPORT
+  UNKNOWN
+}
+
+model FundingOrganisation {
+  id            String   @id @default(uuid())
+  name          String
+  slug          String   @unique
+  type          String?
+  website       String?
+  description   String?
+
+  source        String
+  sourceId      String?  @map("source_id")
+  sourceUrl     String?  @map("source_url")
+  firstSeenAt   DateTime @default(now()) @map("first_seen_at")
+  lastSeenAt    DateTime @default(now()) @map("last_seen_at")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  opportunities FundingOpportunity[]
+
+  @@map("funding_organisations")
+}
+
+model FundingOpportunity {
+  id              String        @id @default(uuid())
+  title           String
+  organisationId  String?       @map("organisation_id")
+  organisationName String?      @map("organisation_name")
+  description     String?
+  summary         String?
+  type            FundingType   @default(UNKNOWN)
+  status          FundingStatus @default(UNKNOWN)
+
+  amountMin       Decimal?      @map("amount_min") @db.Decimal(16, 2)
+  amountMax       Decimal?      @map("amount_max") @db.Decimal(16, 2)
+  totalFundPot    Decimal?      @map("total_fund_pot") @db.Decimal(16, 2)
+  currency        String?       @default("GBP")
+
+  opensAt         DateTime?     @map("opens_at")
+  closesAt        DateTime?     @map("closes_at")
+
+  eligibility     String?
+  sectors         String[]      @default([])
+  locations       String[]      @default([])
+  businessStage   String[]      @default([]) @map("business_stage")
+  applicationUrl  String?       @map("application_url")
+
+  source          String
+  sourceId        String        @map("source_id")
+  sourceUrl       String?       @map("source_url")
+  rawRecordId     String?       @map("raw_record_id")
+  firstSeenAt     DateTime      @default(now()) @map("first_seen_at")
+  lastSeenAt      DateTime      @default(now()) @map("last_seen_at")
+  lastUpdatedAt   DateTime      @default(now()) @map("last_updated_at")
+  lastCheckedAt   DateTime?     @map("last_checked_at")
+  sourceUpdatedAt DateTime?     @map("source_updated_at")
+  createdAt       DateTime      @default(now()) @map("created_at")
+  updatedAt       DateTime      @updatedAt @map("updated_at")
+
+  organisation    FundingOrganisation? @relation(fields: [organisationId], references: [id], onDelete: SetNull)
+  awards          FundingAward[]
+
+  @@unique([source, sourceId])
+  @@index([status, closesAt])
+  @@index([opensAt])
+  @@index([organisationId])
+  @@map("funding_opportunities")
+}
+
+/// A funding award actually made to a recipient, where the publisher reports
+/// recipients (e.g. grant transparency data).
+model FundingAward {
+  id             String    @id @default(uuid())
+  opportunityId  String?   @map("opportunity_id")
+  recipientName  String    @map("recipient_name")
+  recipientNormalisedName String @map("recipient_normalised_name")
+  resolvedCompanyId String? @map("resolved_company_id")
+  resolutionConfidence Float? @map("resolution_confidence")
+  amount         Decimal?  @db.Decimal(16, 2)
+  currency       String?   @default("GBP")
+  awardedAt      DateTime? @map("awarded_at")
+  purpose        String?
+
+  source         String
+  sourceId       String    @map("source_id")
+  sourceUrl      String?   @map("source_url")
+  firstSeenAt    DateTime  @default(now()) @map("first_seen_at")
+  lastSeenAt     DateTime  @default(now()) @map("last_seen_at")
+  lastUpdatedAt  DateTime  @default(now()) @map("last_updated_at")
+
+  opportunity    FundingOpportunity? @relation(fields: [opportunityId], references: [id], onDelete: SetNull)
+  resolvedCompany Company?           @relation(fields: [resolvedCompanyId], references: [id], onDelete: SetNull)
+
+  @@unique([source, sourceId])
+  @@index([recipientNormalisedName])
+  @@index([resolvedCompanyId])
+  @@map("funding_awards")
+}
+
+model JobPosting {
+  id               String    @id @default(uuid())
+  title            String
+  employerName     String    @map("employer_name")
+  employerNormalisedName String @map("employer_normalised_name")
+  companyId        String?   @map("company_id")
+  description      String?
+  locationText     String?   @map("location_text")
+  postcode         String?
+  localAuthorityId String?   @map("local_authority_id")
+  region           WelshRegion?
+  latitude         Float?
+  longitude        Float?
+  salaryMin        Decimal?  @map("salary_min") @db.Decimal(12, 2)
+  salaryMax        Decimal?  @map("salary_max") @db.Decimal(12, 2)
+  salaryPeriod     String?   @map("salary_period")
+  contractType     String?   @map("contract_type")
+  postedAt         DateTime? @map("posted_at")
+  closesAt         DateTime? @map("closes_at")
+  applicationUrl   String?   @map("application_url")
+
+  source           String
+  sourceId         String    @map("source_id")
+  sourceUrl        String?   @map("source_url")
+  firstSeenAt      DateTime  @default(now()) @map("first_seen_at")
+  lastSeenAt       DateTime  @default(now()) @map("last_seen_at")
+  lastUpdatedAt    DateTime  @default(now()) @map("last_updated_at")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+
+  company          Company?        @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  localAuthority   LocalAuthority? @relation(fields: [localAuthorityId], references: [id], onDelete: SetNull)
+
+  @@unique([source, sourceId])
+  @@index([postedAt])
+  @@index([companyId])
+  @@index([localAuthorityId])
+  @@map("jobs")
+}
+
+model InfrastructureProject {
+  id               String    @id @default(uuid())
+  name             String
+  description      String?
+  category         String?
+  status           String?
+  valueAmount      Decimal?  @map("value_amount") @db.Decimal(16, 2)
+  currency         String?   @default("GBP")
+  startAt          DateTime? @map("start_at")
+  endAt            DateTime? @map("end_at")
+  promoterName     String?   @map("promoter_name")
+  localAuthorityId String?   @map("local_authority_id")
+  region           WelshRegion?
+  postcode         String?
+  latitude         Float?
+  longitude        Float?
+
+  source           String
+  sourceId         String    @map("source_id")
+  sourceUrl        String?   @map("source_url")
+  firstSeenAt      DateTime  @default(now()) @map("first_seen_at")
+  lastSeenAt       DateTime  @default(now()) @map("last_seen_at")
+  lastUpdatedAt    DateTime  @default(now()) @map("last_updated_at")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+
+  localAuthority   LocalAuthority? @relation(fields: [localAuthorityId], references: [id], onDelete: SetNull)
+
+  @@unique([source, sourceId])
+  @@index([localAuthorityId])
+  @@map("infrastructure_projects")
+}

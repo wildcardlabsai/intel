@@ -1,0 +1,207 @@
+// ---------------------------------------------------------------------------
+// Public procurement (primary source: Sell2Wales OCDS)
+// ---------------------------------------------------------------------------
+
+enum ProcurementNoticeType {
+  PRIOR_INFORMATION
+  TENDER
+  CONTRACT_AWARD
+  QUOTATION
+  FRAMEWORK
+  MODIFICATION
+  CONTRACT_IMPLEMENTATION
+  UNKNOWN
+}
+
+enum ProcurementStatus {
+  PLANNING
+  ACTIVE
+  CLOSED
+  AWARDED
+  CANCELLED
+  UNSUCCESSFUL
+  COMPLETE
+  WITHDRAWN
+  UNKNOWN
+}
+
+/// A contracting authority. Resolved to a Company or LocalAuthority where we
+/// can do so confidently.
+model ProcurementBuyer {
+  id               String    @id @default(uuid())
+  name             String
+  normalisedName   String    @map("normalised_name")
+  /// OCDS organisation identifier, e.g. "GB-COH-01234567".
+  identifierScheme String?   @map("identifier_scheme")
+  identifierId     String?   @map("identifier_id")
+  companyNumber    String?   @map("company_number")
+  resolvedCompanyId String?  @map("resolved_company_id")
+  resolutionConfidence Float? @map("resolution_confidence")
+  contactEmail     String?   @map("contact_email")
+  website          String?
+  addressLocality  String?   @map("address_locality")
+  postcode         String?
+  latitude         Float?
+  longitude        Float?
+
+  source           String    @default("sell2wales")
+  sourceId         String    @map("source_id")
+  sourceUrl        String?   @map("source_url")
+  firstSeenAt      DateTime  @default(now()) @map("first_seen_at")
+  lastSeenAt       DateTime  @default(now()) @map("last_seen_at")
+  lastUpdatedAt    DateTime  @default(now()) @map("last_updated_at")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+
+  resolvedCompany  Company?  @relation(fields: [resolvedCompanyId], references: [id], onDelete: SetNull)
+  notices          ProcurementNotice[]
+
+  @@unique([source, sourceId])
+  @@index([normalisedName])
+  @@index([resolvedCompanyId])
+  @@map("procurement_buyers")
+}
+
+/// A supplier named on an award.
+model ProcurementSupplier {
+  id               String    @id @default(uuid())
+  name             String
+  normalisedName   String    @map("normalised_name")
+  identifierScheme String?   @map("identifier_scheme")
+  identifierId     String?   @map("identifier_id")
+  companyNumber    String?   @map("company_number")
+  resolvedCompanyId String?  @map("resolved_company_id")
+  resolutionConfidence Float? @map("resolution_confidence")
+  isSme            Boolean?  @map("is_sme")
+  addressLocality  String?   @map("address_locality")
+  postcode         String?
+  country          String?
+  latitude         Float?
+  longitude        Float?
+
+  source           String    @default("sell2wales")
+  sourceId         String    @map("source_id")
+  sourceUrl        String?   @map("source_url")
+  firstSeenAt      DateTime  @default(now()) @map("first_seen_at")
+  lastSeenAt       DateTime  @default(now()) @map("last_seen_at")
+  lastUpdatedAt    DateTime  @default(now()) @map("last_updated_at")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+
+  resolvedCompany  Company?  @relation(fields: [resolvedCompanyId], references: [id], onDelete: SetNull)
+  awards           ProcurementAward[]
+
+  @@unique([source, sourceId])
+  @@index([normalisedName])
+  @@index([resolvedCompanyId])
+  @@map("procurement_suppliers")
+}
+
+model ProcurementNotice {
+  id               String                @id @default(uuid())
+  /// Open Contracting identifier — stable across the contracting process.
+  ocid             String                @map("ocid")
+  noticeId         String                @map("notice_id")
+  type             ProcurementNoticeType @default(UNKNOWN)
+  status           ProcurementStatus     @default(UNKNOWN)
+  title            String
+  description      String?
+  buyerId          String?               @map("buyer_id")
+
+  valueAmount      Decimal?              @map("value_amount") @db.Decimal(16, 2)
+  valueCurrency    String?               @map("value_currency")
+  valueAmountMin   Decimal?              @map("value_amount_min") @db.Decimal(16, 2)
+  valueAmountMax   Decimal?              @map("value_amount_max") @db.Decimal(16, 2)
+
+  publishedAt      DateTime?             @map("published_at")
+  deadlineAt       DateTime?             @map("deadline_at")
+  contractStartAt  DateTime?             @map("contract_start_at")
+  contractEndAt    DateTime?             @map("contract_end_at")
+
+  /// CPV (Common Procurement Vocabulary) classifications.
+  cpvCodes         String[]              @default([]) @map("cpv_codes")
+  categories       String[]              @default([])
+  procurementMethod String?              @map("procurement_method")
+
+  deliveryLocality String?               @map("delivery_locality")
+  postcode         String?
+  localAuthorityId String?               @map("local_authority_id")
+  region           WelshRegion?
+  latitude         Float?
+  longitude        Float?
+
+  source           String                @default("sell2wales")
+  sourceId         String                @map("source_id")
+  sourceUrl        String?               @map("source_url")
+  rawRecordId      String?               @map("raw_record_id")
+  firstSeenAt      DateTime              @default(now()) @map("first_seen_at")
+  lastSeenAt       DateTime              @default(now()) @map("last_seen_at")
+  lastUpdatedAt    DateTime              @default(now()) @map("last_updated_at")
+  sourceUpdatedAt  DateTime?             @map("source_updated_at")
+  createdAt        DateTime              @default(now()) @map("created_at")
+  updatedAt        DateTime              @updatedAt @map("updated_at")
+
+  buyer            ProcurementBuyer?     @relation(fields: [buyerId], references: [id], onDelete: SetNull)
+  localAuthority   LocalAuthority?       @relation(fields: [localAuthorityId], references: [id], onDelete: SetNull)
+  awards           ProcurementAward[]
+  documents        ProcurementDocument[]
+
+  @@unique([source, sourceId])
+  @@index([ocid])
+  @@index([publishedAt])
+  @@index([status, publishedAt])
+  @@index([valueAmount])
+  @@index([buyerId])
+  @@index([localAuthorityId])
+  @@map("procurement_notices")
+}
+
+model ProcurementAward {
+  id             String            @id @default(uuid())
+  noticeId       String            @map("notice_id")
+  supplierId     String?           @map("supplier_id")
+  awardId        String            @map("award_id")
+  title          String?
+  description    String?
+  status         ProcurementStatus @default(UNKNOWN)
+  valueAmount    Decimal?          @map("value_amount") @db.Decimal(16, 2)
+  valueCurrency  String?           @map("value_currency")
+  awardedAt      DateTime?         @map("awarded_at")
+  contractStartAt DateTime?        @map("contract_start_at")
+  contractEndAt  DateTime?         @map("contract_end_at")
+
+  source         String            @default("sell2wales")
+  sourceUrl      String?           @map("source_url")
+  firstSeenAt    DateTime          @default(now()) @map("first_seen_at")
+  lastSeenAt     DateTime          @default(now()) @map("last_seen_at")
+  lastUpdatedAt  DateTime          @default(now()) @map("last_updated_at")
+
+  notice         ProcurementNotice    @relation(fields: [noticeId], references: [id], onDelete: Cascade)
+  supplier       ProcurementSupplier? @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+
+  @@unique([noticeId, awardId])
+  @@index([supplierId])
+  @@index([awardedAt])
+  @@map("procurement_awards")
+}
+
+model ProcurementDocument {
+  id          String    @id @default(uuid())
+  noticeId    String    @map("notice_id")
+  documentId  String    @map("document_id")
+  title       String?
+  description String?
+  documentType String?  @map("document_type")
+  url         String
+  format      String?
+  publishedAt DateTime? @map("published_at")
+
+  source      String    @default("sell2wales")
+  firstSeenAt DateTime  @default(now()) @map("first_seen_at")
+  lastSeenAt  DateTime  @default(now()) @map("last_seen_at")
+
+  notice      ProcurementNotice @relation(fields: [noticeId], references: [id], onDelete: Cascade)
+
+  @@unique([noticeId, documentId])
+  @@map("procurement_documents")
+}

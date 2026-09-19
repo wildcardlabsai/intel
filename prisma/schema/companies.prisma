@@ -1,0 +1,377 @@
+// ---------------------------------------------------------------------------
+// Companies (primary source: Companies House)
+// ---------------------------------------------------------------------------
+
+enum CompanyStatus {
+  ACTIVE
+  DISSOLVED
+  LIQUIDATION
+  RECEIVERSHIP
+  ADMINISTRATION
+  VOLUNTARY_ARRANGEMENT
+  INSOLVENCY_PROCEEDINGS
+  CONVERTED_CLOSED
+  REGISTERED
+  REMOVED
+  CLOSED
+  OPEN
+  UNKNOWN
+}
+
+enum AddressType {
+  REGISTERED_OFFICE
+  SERVICE_ADDRESS
+  TRADING
+  CORRESPONDENCE
+}
+
+enum CompanyEventType {
+  INCORPORATED
+  DISSOLVED
+  STATUS_CHANGED
+  NAME_CHANGED
+  ADDRESS_CHANGED
+  OFFICER_APPOINTED
+  OFFICER_RESIGNED
+  PSC_NOTIFIED
+  PSC_CEASED
+  FILING
+  CHARGE_CREATED
+  CHARGE_SATISFIED
+  ACCOUNTS_DUE
+  PLANNING_APPLICATION
+  CONTRACT_AWARDED
+  CONTRACT_TENDERED
+  FUNDING_AWARDED
+  JOB_POSTED
+}
+
+/// Confidence that a company genuinely belongs to Wales. Derived from address
+/// evidence only — never from the company's name.
+enum WelshConfidence {
+  /// Registered office postcode is in a Welsh postcode area.
+  CONFIRMED
+  /// Address locality/region text indicates Wales but postcode is missing.
+  LIKELY
+  /// Trading or service address in Wales, registered office elsewhere.
+  POSSIBLE
+  /// Evidence indicates the company is not Welsh.
+  NOT_WELSH
+  UNKNOWN
+}
+
+model Company {
+  id                 String          @id @default(uuid())
+  /// Companies House company number — the canonical external identifier.
+  companyNumber      String          @unique @map("company_number")
+  name               String
+  /// Upper-cased, punctuation- and suffix-stripped name for entity matching.
+  normalisedName     String          @map("normalised_name")
+  previousNames      String[]        @default([]) @map("previous_names")
+  status             CompanyStatus   @default(UNKNOWN)
+  statusDetail       String?         @map("status_detail")
+  companyType        String?         @map("company_type")
+  jurisdiction       String?
+  incorporatedOn     DateTime?       @map("incorporated_on")
+  dissolvedOn        DateTime?       @map("dissolved_on")
+
+  // --- Location (denormalised from the registered office for fast filtering)
+  isWelsh            Boolean         @default(false) @map("is_welsh")
+  welshConfidence    WelshConfidence @default(UNKNOWN) @map("welsh_confidence")
+  /// Human-readable explanation of the Welsh classification decision.
+  welshEvidence      String?         @map("welsh_evidence")
+  country            String?
+  region             WelshRegion?
+  localAuthorityId   String?         @map("local_authority_id")
+  town               String?
+  postcode           String?
+  latitude           Float?
+  longitude          Float?
+
+  // --- Industry
+  sicCodes           String[]        @default([]) @map("sic_codes")
+  primarySectorId    String?         @map("primary_sector_id")
+
+  // --- Accounts
+  accountsLastMadeUpTo DateTime?     @map("accounts_last_made_up_to")
+  accountsNextDue      DateTime?     @map("accounts_next_due")
+  accountsCategory     String?       @map("accounts_category")
+  confirmationStatementNextDue DateTime? @map("confirmation_statement_next_due")
+  /// Size band derived from the accounts category Companies House reports.
+  sizeBand             String?       @map("size_band")
+  hasInsolvencyHistory Boolean       @default(false) @map("has_insolvency_history")
+  hasCharges           Boolean       @default(false) @map("has_charges")
+
+  // --- Provenance
+  source             String          @default("companies_house")
+  sourceId           String          @map("source_id")
+  sourceUrl          String?         @map("source_url")
+  rawRecordId        String?         @map("raw_record_id")
+  firstSeenAt        DateTime        @default(now()) @map("first_seen_at")
+  lastSeenAt         DateTime        @default(now()) @map("last_seen_at")
+  lastUpdatedAt      DateTime        @default(now()) @map("last_updated_at")
+  sourceUpdatedAt    DateTime?       @map("source_updated_at")
+  /// Set when detail endpoints (officers/PSC/filings) were last synced.
+  detailSyncedAt     DateTime?       @map("detail_synced_at")
+
+  createdAt          DateTime        @default(now()) @map("created_at")
+  updatedAt          DateTime        @updatedAt @map("updated_at")
+
+  localAuthority     LocalAuthority? @relation(fields: [localAuthorityId], references: [id], onDelete: SetNull)
+  primarySector      Sector?         @relation(fields: [primarySectorId], references: [id], onDelete: SetNull)
+
+  addresses          CompanyAddress[]
+  officers           CompanyOfficer[]
+  pscs               CompanyPsc[]
+  filings            CompanyFiling[]
+  charges            CompanyCharge[]
+  events             CompanyEvent[]
+  industries         CompanyIndustry[]
+  aliases            CompanyAlias[]
+  savedBy            SavedCompany[]
+  planningApplications PlanningApplication[]
+  procurementSuppliers ProcurementSupplier[]
+  procurementBuyers    ProcurementBuyer[]
+  fundingAwards        FundingAward[]
+  jobs                 JobPosting[]
+
+  @@index([normalisedName])
+  @@index([isWelsh, status])
+  @@index([region])
+  @@index([localAuthorityId])
+  @@index([postcode])
+  @@index([primarySectorId])
+  @@index([incorporatedOn])
+  @@index([latitude, longitude])
+  @@map("companies")
+}
+
+model CompanyAddress {
+  id            String      @id @default(uuid())
+  companyId     String      @map("company_id")
+  type          AddressType @default(REGISTERED_OFFICE)
+  careOf        String?     @map("care_of")
+  premises      String?
+  addressLine1  String?     @map("address_line_1")
+  addressLine2  String?     @map("address_line_2")
+  locality      String?
+  regionText    String?     @map("region_text")
+  postcode      String?
+  country       String?
+  latitude      Float?
+  longitude     Float?
+  isCurrent     Boolean     @default(true) @map("is_current")
+
+  source        String      @default("companies_house")
+  sourceUrl     String?     @map("source_url")
+  firstSeenAt   DateTime    @default(now()) @map("first_seen_at")
+  lastSeenAt    DateTime    @default(now()) @map("last_seen_at")
+  lastUpdatedAt DateTime    @default(now()) @map("last_updated_at")
+
+  company       Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
+  @@index([postcode])
+  @@map("company_addresses")
+}
+
+model CompanyOfficer {
+  id              String    @id @default(uuid())
+  companyId       String    @map("company_id")
+  /// Companies House appointment identifier, where available.
+  officerId       String?   @map("officer_id")
+  name            String
+  normalisedName  String    @map("normalised_name")
+  role            String?
+  appointedOn     DateTime? @map("appointed_on")
+  resignedOn      DateTime? @map("resigned_on")
+  nationality     String?
+  countryOfResidence String? @map("country_of_residence")
+  occupation      String?
+  /// Companies House publishes month/year only for date of birth.
+  dobMonth        Int?      @map("dob_month")
+  dobYear         Int?      @map("dob_year")
+  addressLocality String?   @map("address_locality")
+  addressPostcode String?   @map("address_postcode")
+  isActive        Boolean   @default(true) @map("is_active")
+
+  source          String    @default("companies_house")
+  sourceId        String    @map("source_id")
+  sourceUrl       String?   @map("source_url")
+  firstSeenAt     DateTime  @default(now()) @map("first_seen_at")
+  lastSeenAt      DateTime  @default(now()) @map("last_seen_at")
+  lastUpdatedAt   DateTime  @default(now()) @map("last_updated_at")
+
+  company         Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, sourceId])
+  @@index([normalisedName])
+  @@index([companyId, isActive])
+  @@map("company_officers")
+}
+
+model CompanyPsc {
+  id              String    @id @default(uuid())
+  companyId       String    @map("company_id")
+  name            String
+  normalisedName  String    @map("normalised_name")
+  kind            String?
+  naturesOfControl String[] @default([]) @map("natures_of_control")
+  notifiedOn      DateTime? @map("notified_on")
+  ceasedOn        DateTime? @map("ceased_on")
+  nationality     String?
+  countryOfResidence String? @map("country_of_residence")
+  dobMonth        Int?      @map("dob_month")
+  dobYear         Int?      @map("dob_year")
+  /// Set when the PSC is itself a registered company.
+  pscCompanyNumber String?  @map("psc_company_number")
+  isActive        Boolean   @default(true) @map("is_active")
+
+  source          String    @default("companies_house")
+  sourceId        String    @map("source_id")
+  sourceUrl       String?   @map("source_url")
+  firstSeenAt     DateTime  @default(now()) @map("first_seen_at")
+  lastSeenAt      DateTime  @default(now()) @map("last_seen_at")
+  lastUpdatedAt   DateTime  @default(now()) @map("last_updated_at")
+
+  company         Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, sourceId])
+  @@index([normalisedName])
+  @@map("company_pscs")
+}
+
+model CompanyFiling {
+  id              String    @id @default(uuid())
+  companyId       String    @map("company_id")
+  transactionId   String    @map("transaction_id")
+  category        String?
+  subcategory     String?
+  type            String?
+  description     String?
+  /// Companies House returns a description template plus values; kept for
+  /// faithful rendering.
+  descriptionValues Json?   @map("description_values")
+  date            DateTime?
+  pages           Int?
+  documentUrl     String?   @map("document_url")
+
+  source          String    @default("companies_house")
+  sourceUrl       String?   @map("source_url")
+  firstSeenAt     DateTime  @default(now()) @map("first_seen_at")
+  lastSeenAt      DateTime  @default(now()) @map("last_seen_at")
+  lastUpdatedAt   DateTime  @default(now()) @map("last_updated_at")
+
+  company         Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, transactionId])
+  @@index([companyId, date])
+  @@index([category])
+  @@map("company_filings")
+}
+
+model CompanyCharge {
+  id                String    @id @default(uuid())
+  companyId         String    @map("company_id")
+  chargeId          String    @map("charge_id")
+  chargeCode        String?   @map("charge_code")
+  classification    String?
+  status            String?
+  createdOn         DateTime? @map("created_on")
+  deliveredOn       DateTime? @map("delivered_on")
+  satisfiedOn       DateTime? @map("satisfied_on")
+  personsEntitled   String[]  @default([]) @map("persons_entitled")
+  amountSecured     String?   @map("amount_secured")
+  particulars       String?
+
+  source            String    @default("companies_house")
+  sourceUrl         String?   @map("source_url")
+  firstSeenAt       DateTime  @default(now()) @map("first_seen_at")
+  lastSeenAt        DateTime  @default(now()) @map("last_seen_at")
+  lastUpdatedAt     DateTime  @default(now()) @map("last_updated_at")
+
+  company           Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, chargeId])
+  @@index([companyId, createdOn])
+  @@map("company_charges")
+}
+
+/// Unified timeline entry. Every event points back to the record it came from
+/// so the UI can always render a "source" link.
+model CompanyEvent {
+  id               String           @id @default(uuid())
+  companyId        String           @map("company_id")
+  type             CompanyEventType
+  title            String
+  description      String?
+  occurredAt       DateTime         @map("occurred_at")
+  /// The table and row this event was derived from.
+  sourceEntityType String?          @map("source_entity_type")
+  sourceEntityId   String?          @map("source_entity_id")
+  source           String
+  sourceUrl        String?          @map("source_url")
+  metadata         Json             @default("{}")
+  createdAt        DateTime         @default(now()) @map("created_at")
+
+  company          Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, type, occurredAt, sourceEntityId])
+  @@index([companyId, occurredAt])
+  @@index([type])
+  @@map("company_events")
+}
+
+model CompanyIndustry {
+  id        String  @id @default(uuid())
+  companyId String  @map("company_id")
+  sicCodeId String  @map("sic_code_id")
+  isPrimary Boolean @default(false) @map("is_primary")
+
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  sicCode   SicCode @relation(fields: [sicCodeId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, sicCodeId])
+  @@index([sicCodeId])
+  @@map("company_industries")
+}
+
+/// Alternate names seen in other datasets ("ABC Construction", "ABC
+/// Construction Limited"). Drives entity resolution across sources.
+model CompanyAlias {
+  id             String   @id @default(uuid())
+  companyId      String   @map("company_id")
+  alias          String
+  normalisedAlias String  @map("normalised_alias")
+  source         String
+  confidence     Float    @default(1)
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  company        Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, normalisedAlias])
+  @@index([normalisedAlias])
+  @@map("company_aliases")
+}
+
+/// The cross-source intelligence graph: who is connected to what, with the
+/// evidence that produced the link and a confidence score.
+model EntityLink {
+  id         String   @id @default(uuid())
+  fromType   String   @map("from_type")
+  fromId     String   @map("from_id")
+  toType     String   @map("to_type")
+  toId       String   @map("to_id")
+  relation   String
+  confidence Float    @default(1)
+  method     String?
+  evidence   Json     @default("{}")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  @@unique([fromType, fromId, toType, toId, relation])
+  @@index([fromType, fromId])
+  @@index([toType, toId])
+  @@index([relation])
+  @@map("entity_links")
+}

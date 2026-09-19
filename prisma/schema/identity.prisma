@@ -1,0 +1,378 @@
+// ---------------------------------------------------------------------------
+// Identity, organisations, billing and account administration
+// ---------------------------------------------------------------------------
+
+enum UserRole {
+  USER
+  PRO
+  BUSINESS
+  ENTERPRISE
+  ADMIN
+  SUPER_ADMIN
+}
+
+enum OrgMemberRole {
+  OWNER
+  ADMIN
+  MEMBER
+}
+
+enum PlanCode {
+  FREE
+  PRO
+  BUSINESS
+  ENTERPRISE
+}
+
+enum SubscriptionStatus {
+  TRIALING
+  ACTIVE
+  PAST_DUE
+  CANCELED
+  INCOMPLETE
+  INCOMPLETE_EXPIRED
+  UNPAID
+  PAUSED
+}
+
+enum UsageKind {
+  SEARCH
+  EXPORT
+  API_CALL
+  REPORT
+  ALERT_RUN
+  SAVED_COMPANY
+}
+
+enum ConsentType {
+  MARKETING_EMAIL
+  TERMS
+  PRIVACY
+  COOKIES
+}
+
+enum NotificationType {
+  ALERT
+  SAVED_COMPANY_UPDATE
+  SYSTEM
+  BILLING
+  REPORT_READY
+}
+
+/// Application user. Authentication itself is owned by Supabase Auth; this row
+/// mirrors the auth user and carries all product state. `authId` is the
+/// Supabase `auth.users.id`.
+model User {
+  id             String    @id @default(uuid())
+  authId         String    @unique @map("auth_id")
+  email          String    @unique
+  name           String?
+  role           UserRole  @default(USER)
+  jobTitle       String?   @map("job_title")
+  phone          String?
+  avatarUrl      String?   @map("avatar_url")
+  emailVerifiedAt DateTime? @map("email_verified_at")
+  lastSeenAt     DateTime? @map("last_seen_at")
+  onboardedAt    DateTime? @map("onboarded_at")
+  timezone       String    @default("Europe/London")
+  // Notification preferences
+  emailAlerts    Boolean   @default(true) @map("email_alerts")
+  emailDigest    Boolean   @default(true) @map("email_digest")
+  emailProduct   Boolean   @default(true) @map("email_product")
+
+  organisationId String?   @map("organisation_id")
+  organisation   Organisation? @relation(fields: [organisationId], references: [id], onDelete: SetNull)
+
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+  /// Soft delete — GDPR erasure sets this and scrubs personal fields.
+  deletedAt      DateTime? @map("deleted_at")
+
+  memberships    OrganisationMember[]
+  apiKeys        ApiKey[]
+  usageEvents    UsageEvent[]
+  notifications  Notification[]
+  savedCompanies SavedCompany[]
+  savedSearches  SavedSearch[]
+  alerts         Alert[]
+  reports        Report[]
+  auditLogs      AuditLog[]
+  consents       ConsentRecord[]
+  dataRequests   DataSubjectRequest[]
+  insights       Insight[]
+  subscriptions  Subscription[]
+
+  @@index([organisationId])
+  @@index([role])
+  @@index([deletedAt])
+  @@map("users")
+}
+
+/// A customer organisation. Subscriptions and API access are owned at this
+/// level so that Business/Enterprise plans can have multiple seats.
+model Organisation {
+  id             String   @id @default(uuid())
+  name           String
+  slug           String   @unique
+  /// Companies House number, when the customer is itself a registered company.
+  companyNumber  String?  @map("company_number")
+  website        String?
+  billingEmail   String?  @map("billing_email")
+  vatNumber      String?  @map("vat_number")
+  addressLine1   String?  @map("address_line_1")
+  addressLine2   String?  @map("address_line_2")
+  city           String?
+  postcode       String?
+  country        String   @default("GB")
+
+  stripeCustomerId String? @unique @map("stripe_customer_id")
+
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+  deletedAt      DateTime? @map("deleted_at")
+
+  users          User[]
+  members        OrganisationMember[]
+  subscriptions  Subscription[]
+  apiKeys        ApiKey[]
+  usageEvents    UsageEvent[]
+  reports        Report[]
+
+  @@map("organisations")
+}
+
+model OrganisationMember {
+  id             String        @id @default(uuid())
+  organisationId String        @map("organisation_id")
+  userId         String        @map("user_id")
+  role           OrgMemberRole @default(MEMBER)
+  invitedEmail   String?       @map("invited_email")
+  invitedAt      DateTime?     @map("invited_at")
+  acceptedAt     DateTime?     @map("accepted_at")
+  createdAt      DateTime      @default(now()) @map("created_at")
+
+  organisation   Organisation  @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([organisationId, userId])
+  @@index([userId])
+  @@map("organisation_members")
+}
+
+/// Subscription plans are database-backed so pricing and limits can change
+/// without a code deploy. Stripe product/price IDs are configured per
+/// environment rather than hard-coded.
+model Plan {
+  id                  String   @id @default(uuid())
+  code                PlanCode @unique
+  name                String
+  description         String?
+  /// Price in pence (GBP). Null for Enterprise / "contact us".
+  priceMonthlyPence   Int?     @map("price_monthly_pence")
+  priceYearlyPence    Int?     @map("price_yearly_pence")
+  currency            String   @default("GBP")
+  stripeProductId     String?  @map("stripe_product_id")
+  stripePriceIdMonthly String? @map("stripe_price_id_monthly")
+  stripePriceIdYearly  String? @map("stripe_price_id_yearly")
+  trialDays           Int      @default(0) @map("trial_days")
+  isPublic            Boolean  @default(true) @map("is_public")
+  isActive            Boolean  @default(true) @map("is_active")
+  sortOrder           Int      @default(0) @map("sort_order")
+  /// Feature limits, e.g. { "searchesPerMonth": 50, "savedCompanies": 10,
+  /// "alerts": 1, "exportsPerMonth": 0, "apiAccess": false, "seats": 1 }.
+  /// A value of -1 means unlimited.
+  limits              Json     @default("{}")
+  features            String[] @default([])
+
+  createdAt           DateTime @default(now()) @map("created_at")
+  updatedAt           DateTime @updatedAt @map("updated_at")
+
+  subscriptions       Subscription[]
+
+  @@map("plans")
+}
+
+model Subscription {
+  id                   String             @id @default(uuid())
+  organisationId       String?            @map("organisation_id")
+  userId               String?            @map("user_id")
+  planId               String             @map("plan_id")
+  status               SubscriptionStatus @default(ACTIVE)
+  stripeCustomerId     String?            @map("stripe_customer_id")
+  stripeSubscriptionId String?            @unique @map("stripe_subscription_id")
+  stripePriceId        String?            @map("stripe_price_id")
+  quantity             Int                @default(1)
+  currentPeriodStart   DateTime?          @map("current_period_start")
+  currentPeriodEnd     DateTime?          @map("current_period_end")
+  cancelAtPeriodEnd    Boolean            @default(false) @map("cancel_at_period_end")
+  canceledAt           DateTime?          @map("canceled_at")
+  trialEndsAt          DateTime?          @map("trial_ends_at")
+
+  createdAt            DateTime           @default(now()) @map("created_at")
+  updatedAt            DateTime           @updatedAt @map("updated_at")
+
+  plan                 Plan               @relation(fields: [planId], references: [id])
+  organisation         Organisation?      @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  user                 User?              @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([organisationId])
+  @@index([userId])
+  @@index([status])
+  @@map("subscriptions")
+}
+
+/// Raw Stripe webhook events. Stored before processing so delivery is
+/// idempotent and replayable; `stripeEventId` is the idempotency key.
+model BillingEvent {
+  id            String    @id @default(uuid())
+  stripeEventId String    @unique @map("stripe_event_id")
+  type          String
+  payload       Json
+  receivedAt    DateTime  @default(now()) @map("received_at")
+  processedAt   DateTime? @map("processed_at")
+  error         String?
+
+  @@index([type])
+  @@index([processedAt])
+  @@map("billing_events")
+}
+
+/// Metered usage, used to enforce plan limits and to show usage in the
+/// dashboard. Aggregated by period in queries rather than pre-computed.
+model UsageEvent {
+  id             String    @id @default(uuid())
+  userId         String?   @map("user_id")
+  organisationId String?   @map("organisation_id")
+  apiKeyId       String?   @map("api_key_id")
+  kind           UsageKind
+  quantity       Int       @default(1)
+  metadata       Json      @default("{}")
+  createdAt      DateTime  @default(now()) @map("created_at")
+
+  user           User?         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organisation   Organisation? @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  apiKey         ApiKey?       @relation(fields: [apiKeyId], references: [id], onDelete: SetNull)
+
+  @@index([userId, kind, createdAt])
+  @@index([organisationId, kind, createdAt])
+  @@index([createdAt])
+  @@map("usage_events")
+}
+
+/// API keys are stored only as a SHA-256 hash; the plaintext key is shown
+/// once at creation. `prefix` is the visible identifier (e.g. "ci_live_a1b2").
+model ApiKey {
+  id             String    @id @default(uuid())
+  name           String
+  prefix         String    @unique
+  hashedKey      String    @unique @map("hashed_key")
+  userId         String    @map("user_id")
+  organisationId String?   @map("organisation_id")
+  scopes         String[]  @default([])
+  rateLimitPerMinute Int   @default(60) @map("rate_limit_per_minute")
+  lastUsedAt     DateTime? @map("last_used_at")
+  expiresAt      DateTime? @map("expires_at")
+  revokedAt      DateTime? @map("revoked_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
+
+  user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organisation   Organisation? @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  usageEvents    UsageEvent[]
+
+  @@index([userId])
+  @@index([organisationId])
+  @@map("api_keys")
+}
+
+model Notification {
+  id        String           @id @default(uuid())
+  userId    String           @map("user_id")
+  type      NotificationType
+  title     String
+  body      String?
+  link      String?
+  metadata  Json             @default("{}")
+  readAt    DateTime?        @map("read_at")
+  emailedAt DateTime?        @map("emailed_at")
+  createdAt DateTime         @default(now()) @map("created_at")
+
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, readAt])
+  @@index([createdAt])
+  @@map("notifications")
+}
+
+/// Backs the public "Register interest" form on the marketing site.
+model NewsletterSubscriber {
+  id             String    @id @default(uuid())
+  email          String    @unique
+  name           String?
+  businessName   String?   @map("business_name")
+  industry       String?
+  interests      String[]  @default([])
+  source         String    @default("landing_page")
+  ipHash         String?   @map("ip_hash")
+  confirmedAt    DateTime? @map("confirmed_at")
+  unsubscribedAt DateTime? @map("unsubscribed_at")
+  unsubscribeToken String  @unique @map("unsubscribe_token")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  @@index([createdAt])
+  @@map("newsletter_subscribers")
+}
+
+/// Append-only audit trail for security-relevant and admin actions.
+model AuditLog {
+  id          String   @id @default(uuid())
+  actorUserId String?  @map("actor_user_id")
+  actorEmail  String?  @map("actor_email")
+  action      String
+  entityType  String?  @map("entity_type")
+  entityId    String?  @map("entity_id")
+  metadata    Json     @default("{}")
+  ipHash      String?  @map("ip_hash")
+  userAgent   String?  @map("user_agent")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  actor       User?    @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([actorUserId])
+  @@index([action, createdAt])
+  @@index([entityType, entityId])
+  @@map("audit_logs")
+}
+
+/// GDPR consent capture — what was agreed, when, and to which version.
+model ConsentRecord {
+  id        String      @id @default(uuid())
+  userId    String?     @map("user_id")
+  email     String?
+  type      ConsentType
+  granted   Boolean
+  version   String
+  ipHash    String?     @map("ip_hash")
+  createdAt DateTime    @default(now()) @map("created_at")
+
+  user      User?       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, type])
+  @@map("consent_records")
+}
+
+/// GDPR subject access / erasure requests.
+model DataSubjectRequest {
+  id          String    @id @default(uuid())
+  userId      String    @map("user_id")
+  kind        String
+  status      String    @default("pending")
+  storagePath String?   @map("storage_path")
+  completedAt DateTime? @map("completed_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("data_subject_requests")
+}

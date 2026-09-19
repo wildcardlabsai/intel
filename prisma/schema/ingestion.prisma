@@ -1,0 +1,204 @@
+// ---------------------------------------------------------------------------
+// Data source registry and ingestion telemetry
+// ---------------------------------------------------------------------------
+
+enum DataSourceCategory {
+  COMPANIES
+  PROCUREMENT
+  PLANNING
+  FUNDING
+  GEOSPATIAL
+  JOBS
+  INFRASTRUCTURE
+  ECONOMIC
+}
+
+enum DataSourceStatus {
+  /// Credentials present and last run succeeded.
+  CONNECTED
+  /// Connector exists but a required environment variable is missing.
+  NOT_CONFIGURED
+  /// No suitable structured public feed exists for this source yet.
+  UNAVAILABLE
+  /// Turned off by an administrator.
+  DISABLED
+  /// Configured but the last run failed.
+  ERROR
+}
+
+enum ImportRunStatus {
+  RUNNING
+  SUCCESS
+  PARTIAL
+  FAILED
+  CANCELLED
+}
+
+enum ImportTrigger {
+  CRON
+  MANUAL
+  BACKFILL
+  WEBHOOK
+}
+
+enum ImportStage {
+  FETCH
+  VALIDATE
+  NORMALISE
+  DEDUPLICATE
+  RESOLVE
+  STORE
+  INDEX
+}
+
+/// One row per external dataset. Drives the admin "Sources" screen and tells
+/// the UI honestly whether a given dataset is actually connected.
+model DataSource {
+  id                String             @id @default(uuid())
+  key               String             @unique
+  name              String
+  organisation      String
+  category          DataSourceCategory
+  description       String?
+  homepageUrl       String?            @map("homepage_url")
+  docsUrl           String?            @map("docs_url")
+  licence           String?
+  licenceUrl        String?            @map("licence_url")
+  /// Restrictions we must honour (attribution, no-redistribution, etc.).
+  usageRestrictions String?            @map("usage_restrictions")
+  /// Publisher's stated refresh cadence — never invented, null if unknown.
+  updateFrequency   String?            @map("update_frequency")
+  /// Cron expression for our own scheduled pull.
+  schedule          String?
+  /// Environment variables that must be present for this connector to run.
+  requiredEnvVars   String[]           @default([]) @map("required_env_vars")
+  status            DataSourceStatus   @default(NOT_CONFIGURED)
+  statusMessage     String?            @map("status_message")
+  enabled           Boolean            @default(true)
+  config            Json               @default("{}")
+
+  lastRunAt         DateTime?          @map("last_run_at")
+  lastSuccessAt     DateTime?          @map("last_success_at")
+  lastErrorAt       DateTime?          @map("last_error_at")
+  lastError         String?            @map("last_error")
+  lastCheckedAt     DateTime?          @map("last_checked_at")
+  nextRunAt         DateTime?          @map("next_run_at")
+  totalRecords      Int                @default(0) @map("total_records")
+
+  createdAt         DateTime           @default(now()) @map("created_at")
+  updatedAt         DateTime           @updatedAt @map("updated_at")
+
+  importRuns        DataImportRun[]
+  rawRecords        RawRecord[]
+  changeLogs        DataChangeLog[]
+  planningAuthorities PlanningAuthority[]
+
+  @@index([category])
+  @@index([status])
+  @@map("data_sources")
+}
+
+/// One execution of a connector.
+model DataImportRun {
+  id               String          @id @default(uuid())
+  dataSourceId     String          @map("data_source_id")
+  connectorKey     String          @map("connector_key")
+  status           ImportRunStatus @default(RUNNING)
+  trigger          ImportTrigger   @default(CRON)
+  startedAt        DateTime        @default(now()) @map("started_at")
+  finishedAt       DateTime?       @map("finished_at")
+  durationMs       Int?            @map("duration_ms")
+
+  recordsFetched   Int             @default(0) @map("records_fetched")
+  recordsCreated   Int             @default(0) @map("records_created")
+  recordsUpdated   Int             @default(0) @map("records_updated")
+  recordsSkipped   Int             @default(0) @map("records_skipped")
+  recordsRejected  Int             @default(0) @map("records_rejected")
+
+  /// Resume point for incremental sync (a date, page token or OCDS cursor).
+  cursorBefore     String?         @map("cursor_before")
+  cursorAfter      String?         @map("cursor_after")
+  stats            Json            @default("{}")
+  error            String?
+  triggeredByUserId String?        @map("triggered_by_user_id")
+
+  dataSource       DataSource      @relation(fields: [dataSourceId], references: [id], onDelete: Cascade)
+  errors           DataImportError[]
+  changeLogs       DataChangeLog[]
+
+  @@index([dataSourceId, startedAt])
+  @@index([status])
+  @@map("data_import_runs")
+}
+
+/// Per-record failures. A bad record never aborts an otherwise healthy run;
+/// it is recorded here and the run is marked PARTIAL.
+model DataImportError {
+  id             String      @id @default(uuid())
+  runId          String      @map("run_id")
+  stage          ImportStage
+  sourceRecordId String?     @map("source_record_id")
+  message        String
+  payload        Json?
+  createdAt      DateTime    @default(now()) @map("created_at")
+
+  run            DataImportRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  @@index([runId])
+  @@index([stage])
+  @@map("data_import_errors")
+}
+
+/// Field-level history for ingested entities, so a company profile can show
+/// "status changed from active to liquidation on <date>" with provenance.
+model DataChangeLog {
+  id           String   @id @default(uuid())
+  entityType   String   @map("entity_type")
+  entityId     String   @map("entity_id")
+  field        String
+  oldValue     String?  @map("old_value")
+  newValue     String?  @map("new_value")
+  dataSourceId String?  @map("data_source_id")
+  runId        String?  @map("run_id")
+  changedAt    DateTime @default(now()) @map("changed_at")
+
+  dataSource   DataSource?    @relation(fields: [dataSourceId], references: [id], onDelete: SetNull)
+  run          DataImportRun? @relation(fields: [runId], references: [id], onDelete: SetNull)
+
+  @@index([entityType, entityId, changedAt])
+  @@index([changedAt])
+  @@map("data_change_log")
+}
+
+/// Verbatim payload as fetched from the publisher. Every normalised row points
+/// back here so a user can always see the original record.
+model RawRecord {
+  id             String   @id @default(uuid())
+  dataSourceId   String   @map("data_source_id")
+  sourceRecordId String   @map("source_record_id")
+  /// SHA-256 of the payload; used to skip unchanged records cheaply.
+  contentHash    String   @map("content_hash")
+  payload        Json
+  fetchedAt      DateTime @default(now()) @map("fetched_at")
+
+  dataSource     DataSource @relation(fields: [dataSourceId], references: [id], onDelete: Cascade)
+
+  @@unique([dataSourceId, sourceRecordId, contentHash])
+  @@index([dataSourceId, sourceRecordId])
+  @@map("raw_records")
+}
+
+/// Persistent cache for outbound HTTP calls to rate-limited publisher APIs.
+model HttpCacheEntry {
+  id         String   @id @default(uuid())
+  cacheKey   String   @unique @map("cache_key")
+  url        String
+  status     Int
+  body       String
+  etag       String?
+  expiresAt  DateTime @map("expires_at")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@index([expiresAt])
+  @@map("http_cache_entries")
+}
