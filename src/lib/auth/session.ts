@@ -8,6 +8,7 @@ import { prisma } from "@/lib/db/prisma";
 import { getEnv, isConfigured } from "@/lib/env";
 import { logger } from "@/lib/logger";
 import { createClient } from "@/lib/supabase/server";
+import { getDevSessionUser } from "@/lib/auth/dev-session";
 
 /**
  * Session and authorisation helpers.
@@ -39,6 +40,11 @@ const ADMIN_ROLES: UserRole[] = ["ADMIN", "SUPER_ADMIN"];
  * its nested layouts do not each hit the database.
  */
 export const getCurrentUser = cache(async (): Promise<SessionUser | null> => {
+  // Development-only preview sign-in. Unreachable in a production build; see
+  // the gating in dev-session.ts.
+  const devUser = await getDevSessionUser();
+  if (devUser) return devUser;
+
   if (!isConfigured("supabase")) return null;
 
   let authUser;

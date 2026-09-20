@@ -40,7 +40,7 @@ const SEARCH_VECTOR = Prisma.sql`(
   setweight(to_tsvector('english', coalesce(c.company_number, '')), 'A') ||
   setweight(to_tsvector('english', coalesce(c.town, '')), 'B') ||
   setweight(to_tsvector('english', coalesce(c.postcode, '')), 'B') ||
-  setweight(to_tsvector('english', coalesce(array_to_string(c.previous_names, ' '), '')), 'C')
+  setweight(to_tsvector('english', coalesce(immutable_array_to_string(c.previous_names, ' '), '')), 'C')
 )`;
 
 function buildConditions(filters: CompanyFilters): Prisma.Sql[] {

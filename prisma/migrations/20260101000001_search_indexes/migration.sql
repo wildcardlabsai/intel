@@ -6,7 +6,7 @@
 -- columns) so that the Prisma schema remains the single source of truth for
 -- columns and `prisma migrate diff` never reports drift.
 --
--- The search layer in src/lib/search/postgres.ts builds tsquery expressions
+-- The search layer in src/lib/search/ builds tsquery expressions
 -- that match these index expressions exactly. If you change an expression
 -- here, change it there too, or the index will stop being used.
 
@@ -17,6 +17,20 @@ CREATE EXTENSION IF NOT EXISTS pg_trgm;
 -- btree_gin lets us combine scalar columns with GIN text indexes.
 CREATE EXTENSION IF NOT EXISTS btree_gin;
 
+-- array_to_string is marked STABLE rather than IMMUTABLE, so PostgreSQL
+-- refuses it inside an index expression ("functions in index expression must
+-- be marked IMMUTABLE"). For a text[] with a constant text separator the
+-- result genuinely does not depend on any setting, so this wrapper asserts
+-- that. The search layer must call this function, not array_to_string, or the
+-- expression will not match the index.
+CREATE OR REPLACE FUNCTION immutable_array_to_string(text[], text)
+  RETURNS text
+  LANGUAGE sql
+  IMMUTABLE
+  PARALLEL SAFE
+  RETURNS NULL ON NULL INPUT
+AS $$ SELECT array_to_string($1, $2) $$;
+
 -- ---------------------------------------------------------------------------
 -- Companies
 -- ---------------------------------------------------------------------------
@@ -26,7 +40,7 @@ CREATE INDEX IF NOT EXISTS "companies_fts_idx" ON "companies" USING GIN (
     setweight(to_tsvector('english', coalesce("company_number", '')), 'A') ||
     setweight(to_tsvector('english', coalesce("town", '')), 'B') ||
     setweight(to_tsvector('english', coalesce("postcode", '')), 'B') ||
-    setweight(to_tsvector('english', coalesce(array_to_string("previous_names", ' '), '')), 'C')
+    setweight(to_tsvector('english', coalesce(immutable_array_to_string("previous_names", ' '), '')), 'C')
   )
 );
 
@@ -63,7 +77,7 @@ CREATE INDEX IF NOT EXISTS "procurement_notices_fts_idx" ON "procurement_notices
     setweight(to_tsvector('english', coalesce("title", '')), 'A') ||
     setweight(to_tsvector('english', coalesce("description", '')), 'B') ||
     setweight(to_tsvector('english', coalesce("delivery_locality", '')), 'B') ||
-    setweight(to_tsvector('english', coalesce(array_to_string("cpv_codes", ' '), '')), 'C')
+    setweight(to_tsvector('english', coalesce(immutable_array_to_string("cpv_codes", ' '), '')), 'C')
   )
 );
 

@@ -40,7 +40,7 @@ const SEARCH_VECTOR = Prisma.sql`(
   setweight(to_tsvector('english', coalesce(n.title, '')), 'A') ||
   setweight(to_tsvector('english', coalesce(n.description, '')), 'B') ||
   setweight(to_tsvector('english', coalesce(n.delivery_locality, '')), 'B') ||
-  setweight(to_tsvector('english', coalesce(array_to_string(n.cpv_codes, ' '), '')), 'C')
+  setweight(to_tsvector('english', coalesce(immutable_array_to_string(n.cpv_codes, ' '), '')), 'C')
 )`;
 
 function buildConditions(filters: ProcurementFilters): Prisma.Sql[] {
@@ -88,7 +88,7 @@ function buildConditions(filters: ProcurementFilters): Prisma.Sql[] {
   }
 
   if (filters.buyerId) {
-    conditions.push(Prisma.sql`n.buyer_id = ${filters.buyerId}::uuid`);
+    conditions.push(Prisma.sql`n.buyer_id = ${filters.buyerId}`);
   }
 
   if (filters.publishedFrom) {
@@ -103,7 +103,7 @@ function buildConditions(filters: ProcurementFilters): Prisma.Sql[] {
     conditions.push(
       Prisma.sql`EXISTS (
         SELECT 1 FROM procurement_awards a
-        WHERE a.notice_id = n.id AND a.supplier_id = ${filters.supplierId}::uuid
+        WHERE a.notice_id = n.id AND a.supplier_id = ${filters.supplierId}
       )`
     );
   }

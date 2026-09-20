@@ -40,6 +40,33 @@ source registry — and no companies, contracts, applications or funding schemes
 
 ---
 
+## Previewing without any external service
+
+The application runs against nothing but a PostgreSQL database. To see it
+working before a single credential exists:
+
+```bash
+export DATABASE_URL=postgresql://…/intel
+npx prisma migrate deploy
+npm run db:seed:reference
+npm run db:seed:dev            # synthetic fixtures, refuses to run in production
+DEV_AUTH_EMAIL=owner@demo.cymru-intelligence.test npm run dev
+```
+
+`db:seed:dev` writes clearly-marked synthetic records — every one carries
+`source = "dev_fixture"` and a company number in a range Companies House does
+not issue. It refuses to run when `NODE_ENV` is `production` or when the
+database already holds real ingested records, and `npm run db:seed:dev --
+--clear` removes everything it wrote.
+
+`DEV_AUTH_EMAIL` signs you in as a seeded account without Supabase. It is
+gated on `NODE_ENV === "development"`, which Next.js sets only for `next dev`;
+a production build inlines `"production"`, so the branch cannot exist in
+anything you deploy. The seeded accounts are `owner@`, `analyst@` and `admin@`
+at `demo.cymru-intelligence.test`.
+
+---
+
 ## Getting started
 
 ```bash

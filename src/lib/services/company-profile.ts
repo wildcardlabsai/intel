@@ -126,7 +126,7 @@ async function getRelatedCompanies(companyId: string) {
       ON o2.normalised_name = o1.normalised_name
      AND o2.company_id <> o1.company_id
     JOIN companies other ON other.id = o2.company_id
-    WHERE o1.company_id = ${companyId}::uuid
+    WHERE o1.company_id = ${companyId}
       AND o1.is_active = true
       AND o2.is_active = true
       AND length(o1.normalised_name) > 6
