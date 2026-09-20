@@ -54,6 +54,7 @@ const NAV_SECTIONS: Array<{
   {
     label: "Account",
     items: [
+      { href: "/dashboard/team", label: "Team", icon: Users },
       { href: "/dashboard/api", label: "API access", icon: KeyRound },
       { href: "/dashboard/settings", label: "Settings", icon: Settings },
     ],

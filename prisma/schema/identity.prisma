@@ -101,6 +101,7 @@ model User {
   dataRequests   DataSubjectRequest[]
   insights       Insight[]
   subscriptions  Subscription[]
+  sentInvitations OrganisationInvitation[]
 
   @@index([organisationId])
   @@index([role])
@@ -137,6 +138,7 @@ model Organisation {
   apiKeys        ApiKey[]
   usageEvents    UsageEvent[]
   reports        Report[]
+  invitations    OrganisationInvitation[]
 
   @@map("organisations")
 }
@@ -157,6 +159,34 @@ model OrganisationMember {
   @@unique([organisationId, userId])
   @@index([userId])
   @@map("organisation_members")
+}
+
+/// A pending invitation to join an organisation.
+///
+/// Kept separate from OrganisationMember because an invitee may not have an
+/// account yet: membership requires a user, an invitation only requires an
+/// email address. Only the hash of the invitation token is stored, so a
+/// database leak cannot be used to accept invitations.
+model OrganisationInvitation {
+  id              String        @id @default(uuid())
+  organisationId  String        @map("organisation_id")
+  email           String
+  role            OrgMemberRole @default(MEMBER)
+  /// SHA-256 of the token. The plaintext exists only in the emailed link.
+  tokenHash       String        @unique @map("token_hash")
+  invitedByUserId String?       @map("invited_by_user_id")
+  expiresAt       DateTime      @map("expires_at")
+  acceptedAt      DateTime?     @map("accepted_at")
+  revokedAt       DateTime?     @map("revoked_at")
+  createdAt       DateTime      @default(now()) @map("created_at")
+
+  organisation    Organisation  @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  invitedBy       User?         @relation(fields: [invitedByUserId], references: [id], onDelete: SetNull)
+
+  @@unique([organisationId, email])
+  @@index([email])
+  @@index([expiresAt])
+  @@map("organisation_invitations")
 }
 
 /// Subscription plans are database-backed so pricing and limits can change
