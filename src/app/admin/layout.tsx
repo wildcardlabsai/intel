@@ -5,6 +5,7 @@ import { requireAdmin } from "@/lib/auth/session";
 const ADMIN_NAV = [
   { href: "/admin", label: "Overview" },
   { href: "/admin/sources", label: "Sources" },
+  { href: "/admin/planning", label: "Planning authorities" },
   { href: "/admin/imports", label: "Import runs" },
   { href: "/admin/errors", label: "Errors" },
   { href: "/admin/quality", label: "Data quality" },

@@ -44,8 +44,12 @@ model PlanningAuthority {
   slug             String           @unique
   localAuthorityId String?          @map("local_authority_id")
   dataSourceId     String?          @map("data_source_id")
-  /// Key of the parser implementation, e.g. "idox", "ocella", "arcgis".
+  /// Key of the adapter implementation, e.g. "arcgis_feature_server".
   connectorKey     String?          @map("connector_key")
+  /// Adapter configuration: the endpoint and the field map from this
+  /// authority's own field names onto ours. Held as data rather than code so
+  /// connecting an authority is a configuration change, not a deploy.
+  connectorConfig  Json             @default("{}") @map("connector_config")
   portalUrl        String?          @map("portal_url")
   searchUrl        String?          @map("search_url")
   dataFormat       String?          @map("data_format")

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { authoriseCronRequest } from "@/lib/api/cron-auth";
-import { getConnector, listConnectors } from "@/lib/ingestion/connectors";
+import { listAllConnectors, resolveConnector } from "@/lib/ingestion/connectors";
 import { runConnector } from "@/lib/ingestion/runner";
 import { logger } from "@/lib/logger";
 
@@ -25,14 +25,14 @@ export async function POST(
   if (unauthorised) return unauthorised;
 
   const { connector: connectorKey } = await params;
-  const connector = getConnector(connectorKey);
+  const connector = await resolveConnector(connectorKey);
 
   if (!connector) {
     return NextResponse.json(
       {
         error: "unknown_connector",
         message: `No connector registered with key "${connectorKey}".`,
-        available: listConnectors().map((c) => c.key),
+        available: (await listAllConnectors()).map((c) => c.key),
       },
       { status: 404 }
     );

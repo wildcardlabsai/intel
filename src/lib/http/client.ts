@@ -47,6 +47,11 @@ export type RequestOptions = {
   body?: unknown;
   /** Treat these statuses as a successful "absent" result rather than an error. */
   notFoundStatuses?: number[];
+  /**
+   * Caller's abort signal, in addition to the client's own timeout. Used when
+   * the platform is shutting an invocation down mid-run.
+   */
+  signal?: AbortSignal;
 };
 
 const RETRYABLE_STATUSES = new Set([408, 425, 429, 500, 502, 503, 504]);
@@ -133,8 +138,16 @@ export class HttpClient {
       }
 
       const startedAt = Date.now();
+      if (options.signal?.aborted) {
+        throw new Error(`Request to ${this.options.name} aborted before it was sent.`);
+      }
+
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), this.options.timeoutMs);
+      // The caller's signal aborts this attempt too, so a shutdown is not left
+      // waiting on the full timeout.
+      const abortFromCaller = () => controller.abort();
+      options.signal?.addEventListener("abort", abortFromCaller, { once: true });
 
       try {
         const response = await this.options.fetchImpl(url, {
@@ -198,6 +211,7 @@ export class HttpClient {
         await this.options.sleepImpl(backoffMs(attempt));
       } finally {
         clearTimeout(timeout);
+        options.signal?.removeEventListener("abort", abortFromCaller);
       }
 
       attempt += 1;

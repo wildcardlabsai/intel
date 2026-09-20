@@ -107,10 +107,33 @@ show a true connected/total count, and every one starts as `UNAVAILABLE` with
 a message explaining that a feed must be identified and its licence confirmed
 before it can be enabled.
 
-Parsers can be written for the common portal families, but *a parser is not a
-feed*: an authority only becomes `CONNECTED` once its specific endpoint has
-been configured and verified. Authorities without one produce no data, and the
-product says so.
+Connecting an authority is a **configuration change, not a deploy**. Each
+authority row carries an adapter key, an endpoint and a field map (see
+Admin → Planning authorities), and the connector is built from that. The
+supported adapters read genuinely machine-readable formats:
+
+| Adapter | Format |
+| --- | --- |
+| `arcgis_feature_server` | ArcGIS FeatureServer/MapServer `query` endpoint |
+| `ckan_datastore` | CKAN `datastore_search` |
+| `geojson` | A GeoJSON FeatureCollection |
+| `json_array` | A plain JSON array, or `{ records: [...] }` |
+
+`idox_html`, `ocella_html` and `none` are recognised and recorded, but
+deliberately **not implemented**. Those portals publish search results as HTML
+built for a browser; scraping them would load a public service in a way its
+terms do not contemplate, and would break on any redesign. Such an authority is
+recorded as unavailable with that reason stated, rather than quietly scraped.
+
+Only `reference` is a required field in a field map. A field an authority does
+not publish stays null; an unmapped status word becomes `UNKNOWN`. Nothing is
+inferred from a value that was not published. Grid references (eastings and
+northings) are converted to WGS84 via `src/lib/geo/osgb.ts`, which is tested
+against Ordnance Survey control points.
+
+*A parser is not a feed*: an authority only becomes `CONNECTED` once its
+specific endpoint has been configured and a test run has actually read records
+from it. Authorities without one produce no data, and the product says so.
 
 ### Funding
 
@@ -207,6 +230,7 @@ exhaust the Companies House quota.
 | `0 2 * * *` | `/api/cron/ingest/companies_house_discovery` | Discover and refresh Welsh companies |
 | `30 2 * * *` | `/api/cron/enrich-companies` | Officers, PSCs, filings, charges for the stalest companies |
 | `0 3 * * *` | `/api/cron/ingest/sell2wales_ocds` | Procurement notices and awards |
+| `0 4 * * *` | `/api/cron/ingest-planning` | Every configured planning authority, in turn |
 | `0 7 * * *` | `/api/cron/alerts` | Match alerts, notify, email |
 
 Run one by hand:
