@@ -125,6 +125,14 @@ built for a browser; scraping them would load a public service in a way its
 terms do not contemplate, and would break on any redesign. Such an authority is
 recorded as unavailable with that reason stated, rather than quietly scraped.
 
+The endpoint is typed into a form by an administrator and then fetched by the
+server, which makes it an SSRF surface. `src/lib/http/ssrf.ts` rejects
+non-https URLs, embedded credentials, bare IPs, `localhost`, internal suffixes
+and every non-routable range (including cloud instance metadata at
+169.254.169.254 and its IPv6-mapped form), both when the configuration is
+stored and again — after resolving DNS — before each fetch. Being an
+administrator is not a reason to allow a request into the internal network.
+
 Only `reference` is a required field in a field map. A field an authority does
 not publish stays null; an unmapped status word becomes `UNKNOWN`. Nothing is
 inferred from a value that was not published. Grid references (eastings and

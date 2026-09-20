@@ -1,6 +1,7 @@
 import "server-only";
 
 import { HttpClient } from "@/lib/http/client";
+import { assertFetchableUrl } from "@/lib/http/ssrf";
 import type { PlanningConnectorConfig } from "@/lib/sources/planning/config";
 import type { RawPlanningRecord } from "@/lib/sources/planning/normalise";
 
@@ -55,6 +56,7 @@ type ArcGisResponse = {
 };
 
 const arcgisAdapter: PlanningAdapter = async (config, offset, signal) => {
+  await assertFetchableUrl(config.endpoint);
   const client = clientFor(config, "arcgis");
   const response = await client.getJson<ArcGisResponse>(config.endpoint, {
     query: {
@@ -94,6 +96,7 @@ type CkanResponse = {
 };
 
 const ckanAdapter: PlanningAdapter = async (config, offset, signal) => {
+  await assertFetchableUrl(config.endpoint);
   const client = clientFor(config, "ckan");
   const response = await client.getJson<CkanResponse>(config.endpoint, {
     query: {
@@ -132,6 +135,7 @@ type GeoJsonResponse = {
 };
 
 const geojsonAdapter: PlanningAdapter = async (config, offset, signal) => {
+  await assertFetchableUrl(config.endpoint);
   const client = clientFor(config, "geojson");
   const response = await client.getJson<GeoJsonResponse>(config.endpoint, { signal });
 
@@ -153,6 +157,7 @@ const geojsonAdapter: PlanningAdapter = async (config, offset, signal) => {
 
 /** A plain JSON array, or an object with a records array. */
 const jsonArrayAdapter: PlanningAdapter = async (config, offset, signal) => {
+  await assertFetchableUrl(config.endpoint);
   const client = clientFor(config, "json");
   const response = await client.getJson<unknown>(config.endpoint, { signal });
 

@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { checkUrlShape } from "@/lib/http/ssrf";
+
 /**
  * Per-authority planning connector configuration.
  *
@@ -140,8 +142,12 @@ export function readPlanningConfig(
     };
   }
 
-  if (!parsed.data.endpoint.startsWith("https://")) {
-    return { ok: false, reason: "The endpoint must be an https URL." };
+  // The endpoint is typed into a form by an administrator and then fetched by
+  // the server, so it is checked against the non-routable ranges before it is
+  // ever stored. The hostname is resolved and re-checked at fetch time.
+  const urlCheck = checkUrlShape(parsed.data.endpoint);
+  if (!urlCheck.ok) {
+    return { ok: false, reason: urlCheck.reason };
   }
 
   if (parsed.data.adapter === "ckan_datastore" && !parsed.data.resourceId) {

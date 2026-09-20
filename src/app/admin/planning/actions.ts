@@ -22,6 +22,9 @@ import { createPlanningConnector } from "@/lib/sources/planning/connector";
  * CONNECTED once its configuration would actually run.
  */
 
+/** A generous ceiling for a field map, which is normally a few hundred bytes. */
+const MAX_CONFIG_BYTES = 20_000;
+
 export type PlanningAdminResult = {
   ok: boolean;
   error?: string;
@@ -46,6 +49,14 @@ export async function savePlanningConfig(formData: FormData): Promise<PlanningAd
   const rawConfig = formData.get("config");
   let parsedConfig: unknown = {};
   if (typeof rawConfig === "string" && rawConfig.trim().length > 0) {
+    // A field map for the widest authority is a few hundred bytes. Cap it so a
+    // mistaken paste cannot put a multi-megabyte blob in every row read.
+    if (rawConfig.length > MAX_CONFIG_BYTES) {
+      return {
+        ok: false,
+        error: `The configuration is too large (limit ${MAX_CONFIG_BYTES} characters).`,
+      };
+    }
     try {
       parsedConfig = JSON.parse(rawConfig);
     } catch (error) {
