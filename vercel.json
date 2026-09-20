@@ -1,0 +1,26 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "crons": [
+    {
+      "path": "/api/cron/ingest/companies_house_discovery",
+      "schedule": "0 2 * * *"
+    },
+    {
+      "path": "/api/cron/enrich-companies",
+      "schedule": "30 2 * * *"
+    },
+    {
+      "path": "/api/cron/ingest/sell2wales_ocds",
+      "schedule": "0 3 * * *"
+    },
+    {
+      "path": "/api/cron/alerts",
+      "schedule": "0 7 * * *"
+    }
+  ],
+  "functions": {
+    "src/app/api/cron/**": {
+      "maxDuration": 300
+    }
+  }
+}

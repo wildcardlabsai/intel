@@ -8,12 +8,19 @@ import { PrismaClient } from "@/generated/prisma/client";
  * works against Supabase's pooled connection (PgBouncer) in production and a
  * local Postgres in development.
  *
- * The client is cached on globalThis so Next.js hot reloading in development
+ * The client is created lazily on first use rather than at import time. That
+ * matters for two reasons: importing a module that happens to touch the
+ * database must not require DATABASE_URL to be present (builds and unit tests
+ * import these modules without a database), and a missing connection string
+ * should fail at the point of the query, with a clear message, rather than at
+ * module load.
+ *
+ * The instance is cached on globalThis so Next.js hot reloading in development
  * does not exhaust the connection pool.
  */
 
 const globalForPrisma = globalThis as unknown as {
-  prisma: PrismaClient | undefined;
+  prismaClient: PrismaClient | undefined;
 };
 
 function createClient(): PrismaClient {
@@ -36,8 +43,22 @@ function createClient(): PrismaClient {
   });
 }
 
-export const prisma: PrismaClient = globalForPrisma.prisma ?? createClient();
-
-if (process.env.NODE_ENV !== "production") {
-  globalForPrisma.prisma = prisma;
+export function getPrismaClient(): PrismaClient {
+  globalForPrisma.prismaClient ??= createClient();
+  return globalForPrisma.prismaClient;
 }
+
+/**
+ * Behaves exactly like a PrismaClient, but defers construction until the first
+ * property is read.
+ */
+export const prisma: PrismaClient = new Proxy({} as PrismaClient, {
+  get(_target, property, receiver) {
+    const client = getPrismaClient();
+    const value = Reflect.get(client as object, property, receiver);
+    return typeof value === "function" ? value.bind(client) : value;
+  },
+  has(_target, property) {
+    return Reflect.has(getPrismaClient() as object, property);
+  },
+});
