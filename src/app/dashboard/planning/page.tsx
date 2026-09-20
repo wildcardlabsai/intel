@@ -147,6 +147,7 @@ export default async function PlanningPage({
         <>
           <SearchFilterBar
             basePath="/dashboard/planning"
+            saveEntityType="PLANNING"
             searchPlaceholder="Reference, address or description"
             current={{ q: filters.q ?? "", sort: filters.sort }}
             selects={[

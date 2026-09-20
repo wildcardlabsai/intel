@@ -37,6 +37,7 @@ function parseLimits(raw: unknown): PlanLimits {
   return {
     searchesPerMonth: numberOr(value.searchesPerMonth, DEFAULT_LIMITS.searchesPerMonth),
     savedCompanies: numberOr(value.savedCompanies, DEFAULT_LIMITS.savedCompanies),
+    savedSearches: numberOr(value.savedSearches, DEFAULT_LIMITS.savedSearches),
     alerts: numberOr(value.alerts, DEFAULT_LIMITS.alerts),
     exportsPerMonth: numberOr(value.exportsPerMonth, DEFAULT_LIMITS.exportsPerMonth),
     reportsPerMonth: numberOr(value.reportsPerMonth, DEFAULT_LIMITS.reportsPerMonth),
@@ -183,10 +184,16 @@ export async function recordUsage(
   });
 }
 
+const COUNT_LIMIT_LABELS = {
+  savedCompanies: "saved companies",
+  savedSearches: "saved searches",
+  alerts: "alerts",
+} as const;
+
 /** Checks a non-metered cap such as "how many alerts may exist at once". */
 export async function checkCountLimit(
   user: SessionUser,
-  field: "savedCompanies" | "alerts",
+  field: "savedCompanies" | "savedSearches" | "alerts",
   currentCount: number
 ): Promise<UsageCheck> {
   if (user.role === "ADMIN" || user.role === "SUPER_ADMIN") {
@@ -206,7 +213,7 @@ export async function checkCountLimit(
     reason: allowed
       ? undefined
       : `Your ${entitlements.planName} plan includes ${limit} ${
-          field === "savedCompanies" ? "saved companies" : "alerts"
+          COUNT_LIMIT_LABELS[field]
         }. Upgrade for more.`,
   };
 }

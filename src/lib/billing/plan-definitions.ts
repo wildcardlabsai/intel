@@ -11,6 +11,7 @@ import type { PlanCode } from "@/generated/prisma/enums";
 export type PlanLimits = {
   searchesPerMonth: number;
   savedCompanies: number;
+  savedSearches: number;
   alerts: number;
   exportsPerMonth: number;
   reportsPerMonth: number;
@@ -24,6 +25,7 @@ export type PlanLimits = {
 export const DEFAULT_LIMITS: PlanLimits = {
   searchesPerMonth: 25,
   savedCompanies: 5,
+  savedSearches: 3,
   alerts: 1,
   exportsPerMonth: 0,
   reportsPerMonth: 0,
@@ -78,6 +80,7 @@ export const DEFAULT_PLANS: PlanSeed[] = [
     limits: {
       searchesPerMonth: -1,
       savedCompanies: 100,
+      savedSearches: 50,
       alerts: 20,
       exportsPerMonth: 50,
       reportsPerMonth: 20,
@@ -105,6 +108,7 @@ export const DEFAULT_PLANS: PlanSeed[] = [
     limits: {
       searchesPerMonth: -1,
       savedCompanies: -1,
+      savedSearches: -1,
       alerts: -1,
       exportsPerMonth: -1,
       reportsPerMonth: -1,
@@ -131,6 +135,7 @@ export const DEFAULT_PLANS: PlanSeed[] = [
     limits: {
       searchesPerMonth: -1,
       savedCompanies: -1,
+      savedSearches: -1,
       alerts: -1,
       exportsPerMonth: -1,
       reportsPerMonth: -1,

@@ -6,6 +6,8 @@ import { Search, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, Input, Label, Select } from "@/components/ui/primitives";
+import { SaveSearchButton } from "@/components/dashboard/save-search-button";
+import type { SaveableEntityType } from "@/lib/search/saved-search";
 
 /**
  * Horizontal filter bar shared by the procurement, planning, funding and jobs
@@ -26,12 +28,15 @@ export function SearchFilterBar({
   current,
   selects,
   sortOptions,
+  saveEntityType,
 }: {
   basePath: string;
   searchPlaceholder: string;
   current: { q: string; sort: string };
   selects: FilterSelect[];
   sortOptions: Array<{ value: string; label: string }>;
+  /** When set, the bar offers to save the current filters as a saved search. */
+  saveEntityType?: SaveableEntityType;
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -126,6 +131,12 @@ export function SearchFilterBar({
             </Button>
           )}
         </div>
+
+        {saveEntityType && (
+          <div className="mt-3 border-t border-border/60 pt-3">
+            <SaveSearchButton entityType={saveEntityType} defaultName={current.q} />
+          </div>
+        )}
       </CardContent>
     </Card>
   );

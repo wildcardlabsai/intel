@@ -1,21 +1,29 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Bookmark } from "lucide-react";
+import { Bookmark, SlidersHorizontal } from "lucide-react";
 
 import {
   Badge,
   Card,
   CardContent,
+  CardHeader,
+  CardTitle,
   EmptyState,
   PageHeader,
   Table,
   Td,
   Th,
 } from "@/components/ui/primitives";
+import { SavedSearchList, type SavedSearchItem } from "@/app/dashboard/saved/saved-search-list";
 import { Button } from "@/components/ui/button";
 import { requireUser } from "@/lib/auth/session";
 import { getEntitlements } from "@/lib/billing/plans";
 import { prisma } from "@/lib/db/prisma";
+import {
+  describeSavedSearch,
+  isSaveableEntityType,
+  type SaveableEntityType,
+} from "@/lib/search/saved-search";
 import { formatDate, formatRelative, humanise } from "@/lib/utils";
 
 export const metadata: Metadata = { title: "Saved items | Cymru Intelligence" };
@@ -24,7 +32,7 @@ export const dynamic = "force-dynamic";
 export default async function SavedPage() {
   const user = await requireUser("/dashboard/saved");
 
-  const [saved, entitlements] = await Promise.all([
+  const [saved, entitlements, savedSearchRecords] = await Promise.all([
     prisma.savedCompany.findMany({
       where: { userId: user.id },
       orderBy: { createdAt: "desc" },
@@ -43,7 +51,28 @@ export default async function SavedPage() {
       },
     }),
     getEntitlements(user),
+    prisma.savedSearch.findMany({
+      where: { userId: user.id },
+      orderBy: { updatedAt: "desc" },
+    }),
   ]);
+
+  // Saved searches for entity types the product no longer offers a search page
+  // for are hidden rather than rendered as dead links.
+  const savedSearches: SavedSearchItem[] = savedSearchRecords
+    .filter((record) => isSaveableEntityType(record.entityType))
+    .map((record) => {
+      const filters = (record.filters ?? {}) as Record<string, unknown>;
+      return {
+        id: record.id,
+        name: record.name,
+        entityType: record.entityType as SaveableEntityType,
+        query: record.query,
+        filters,
+        description: describeSavedSearch(record.query, filters),
+        updatedAt: record.updatedAt.toISOString(),
+      };
+    });
 
   // Changes to saved companies since the user followed them — this is what
   // makes following useful rather than just a bookmark list.
@@ -61,15 +90,15 @@ export default async function SavedPage() {
     <>
       <PageHeader
         eyebrow="Workspace"
-        title="Saved companies"
-        description="Companies you follow. New filings, contracts and planning activity for these appear below."
+        title="Your workspace"
+        description="Companies you follow and searches you have saved. New filings, contracts and planning activity for followed companies appear below."
         actions={
           <Badge tone="neutral">
             {saved.length}
             {entitlements.limits.savedCompanies !== -1
               ? ` / ${entitlements.limits.savedCompanies}`
               : ""}{" "}
-            saved
+            companies
           </Badge>
         }
       />
@@ -166,6 +195,30 @@ export default async function SavedPage() {
           </Card>
         </>
       )}
+
+      <Card>
+        <CardHeader className="flex-row items-center justify-between gap-3">
+          <CardTitle>Saved searches</CardTitle>
+          <Badge tone="neutral">
+            {savedSearches.length}
+            {entitlements.limits.savedSearches !== -1
+              ? ` / ${entitlements.limits.savedSearches}`
+              : ""}{" "}
+            saved
+          </Badge>
+        </CardHeader>
+        <CardContent>
+          {savedSearches.length === 0 ? (
+            <EmptyState
+              icon={<SlidersHorizontal className="h-8 w-8" strokeWidth={1.5} />}
+              title="No saved searches yet"
+              description="Run a search on any dataset, then choose “Save this search” to keep those filters. You can re-run a saved search at any time, or turn it into a daily alert."
+            />
+          ) : (
+            <SavedSearchList items={savedSearches} />
+          )}
+        </CardContent>
+      </Card>
     </>
   );
 }

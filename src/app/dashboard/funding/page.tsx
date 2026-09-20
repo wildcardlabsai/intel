@@ -103,6 +103,7 @@ export default async function FundingPage({
         <>
           <SearchFilterBar
             basePath="/dashboard/funding"
+            saveEntityType="FUNDING"
             searchPlaceholder="Scheme name or purpose"
             current={{ q: filters.q ?? "", sort: filters.sort }}
             selects={[

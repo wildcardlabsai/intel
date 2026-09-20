@@ -105,6 +105,7 @@ export default async function ProcurementPage({
           <>
             <SearchFilterBar
               basePath="/dashboard/procurement"
+            saveEntityType="PROCUREMENT"
               searchPlaceholder="Contract title, description or CPV"
               current={{ q: filters.q ?? "", sort: filters.sort }}
               selects={[

@@ -3,6 +3,7 @@ import Link from "next/link";
 import { Search } from "lucide-react";
 
 import { CompanyFiltersPanel } from "@/app/dashboard/companies/filters";
+import { SaveSearchButton } from "@/components/dashboard/save-search-button";
 import { AwaitingSync, NotConfigured, SourceFooter } from "@/components/source-attribution";
 import { Button } from "@/components/ui/button";
 import {
@@ -142,7 +143,10 @@ export default async function CompanySearchPage({
                   </>
                 )}
               </p>
-              <p className="text-xs text-muted">Search took {results.tookMs}ms</p>
+              <div className="flex items-center gap-3">
+                <SaveSearchButton entityType="COMPANY" defaultName={filters.q ?? ""} />
+                <p className="text-xs text-muted">Search took {results.tookMs}ms</p>
+              </div>
             </div>
 
             {results.items.length === 0 ? (
