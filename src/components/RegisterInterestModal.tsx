@@ -1,6 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useTransition } from "react";
+
+import { registerInterest } from "@/app/actions/register-interest";
 import { useRegisterInterest } from "@/context/RegisterInterestContext";
 
 const INTERESTS = [
@@ -15,6 +17,8 @@ const INTERESTS = [
 export default function RegisterInterestModal() {
   const { isOpen, closeModal } = useRegisterInterest();
   const [submitted, setSubmitted] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [isPending, startTransition] = useTransition();
 
   useEffect(() => {
     if (!isOpen) return;
@@ -31,16 +35,26 @@ export default function RegisterInterestModal() {
 
   useEffect(() => {
     if (!isOpen) {
-      const timeout = setTimeout(() => setSubmitted(false), 300);
+      const timeout = setTimeout(() => {
+        setSubmitted(false);
+        setError(null);
+      }, 300);
       return () => clearTimeout(timeout);
     }
   }, [isOpen]);
 
   if (!isOpen) return null;
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    setSubmitted(true);
+  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const formData = new FormData(event.currentTarget);
+
+    startTransition(async () => {
+      setError(null);
+      const result = await registerInterest(formData);
+      if (result.ok) setSubmitted(true);
+      else setError(result.error ?? "Something went wrong.");
+    });
   };
 
   return (
@@ -76,28 +90,28 @@ export default function RegisterInterestModal() {
                 <label htmlFor="f-name" className="mb-1 block text-xs font-semibold uppercase tracking-wider text-ink-900">
                   Full Name *
                 </label>
-                <input id="f-name" type="text" required placeholder="Jane Davies" className={inputClasses} />
+                <input id="f-name" name="name" type="text" required placeholder="Jane Davies" className={inputClasses} />
               </div>
 
               <div>
                 <label htmlFor="f-business" className="mb-1 block text-xs font-semibold uppercase tracking-wider text-ink-900">
                   Business / Organisation Name
                 </label>
-                <input id="f-business" type="text" placeholder="Welsh Enterprise Ltd" className={inputClasses} />
+                <input id="f-business" name="business" type="text" placeholder="Welsh Enterprise Ltd" className={inputClasses} />
               </div>
 
               <div>
                 <label htmlFor="f-email" className="mb-1 block text-xs font-semibold uppercase tracking-wider text-ink-900">
                   Email Address *
                 </label>
-                <input id="f-email" type="email" required placeholder="jane@example.co.uk" className={inputClasses} />
+                <input id="f-email" name="email" type="email" required placeholder="jane@example.co.uk" className={inputClasses} />
               </div>
 
               <div>
                 <label htmlFor="f-industry" className="mb-1 block text-xs font-semibold uppercase tracking-wider text-ink-900">
                   Industry
                 </label>
-                <select id="f-industry" defaultValue="" className={inputClasses}>
+                <select id="f-industry" name="industry" defaultValue="" className={inputClasses}>
                   <option value="">Select industry sector...</option>
                   <option value="planning">Construction &amp; Real Estate</option>
                   <option value="public">Public Sector &amp; Government</option>
@@ -118,19 +132,22 @@ export default function RegisterInterestModal() {
                       key={interest}
                       className="flex cursor-pointer items-center gap-2 rounded border border-border bg-white p-2 hover:bg-gray-50"
                     >
-                      <input type="checkbox" className="rounded text-ink-900" />
+                      <input type="checkbox" name="interests" value={interest} className="rounded text-ink-900" />
                       <span>{interest}</span>
                     </label>
                   ))}
                 </div>
               </fieldset>
 
+              {error && <p className="text-sm text-red-700">{error}</p>}
+
               <div className="pt-4">
                 <button
                   type="submit"
-                  className="w-full rounded-md bg-green-900 py-3 text-sm font-bold text-white shadow-md transition-colors hover:bg-green-800"
+                  disabled={isPending}
+                  className="w-full rounded-md bg-green-900 py-3 text-sm font-bold text-white shadow-md transition-colors hover:bg-green-800 disabled:opacity-60"
                 >
-                  Register interest
+                  {isPending ? "Registering…" : "Register interest"}
                 </button>
               </div>
             </form>
