@@ -1,0 +1,111 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+# A superseded run tells you nothing useful, so cancel it.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Typecheck, lint, tests, build
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Typecheck, lint and test
+        run: npm run verify
+
+      - name: Build
+        # A build needs a syntactically valid DATABASE_URL to construct the
+        # Prisma client. It never connects: the client is lazy, and every page
+        # that queries is dynamic.
+        env:
+          DATABASE_URL: postgresql://build:build@localhost:5432/build
+        run: npm run build
+
+  migrations:
+    name: Migrations apply to an empty database
+    runs-on: ubuntu-latest
+
+    # The failure this catches is the expensive one: a migration that is fine
+    # in review and rejected by PostgreSQL on deploy. It has happened here
+    # already — an index expression using a STABLE function.
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: intel
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/intel
+      DIRECT_URL: postgresql://postgres:postgres@localhost:5432/intel
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Apply every migration from empty
+        run: npx prisma migrate deploy
+
+      - name: Seed reference data
+        run: npm run db:seed:reference
+
+      - name: Confirm no migration is pending or failed
+        run: npx prisma migrate status
+
+      - name: Report any schema drift (informational)
+        # Not a gate. The expression and trigram indexes are maintained by hand
+        # in 20260101000001_search_indexes because Prisma has no way to declare
+        # them, so this diff always lists them. Read it when you change the
+        # schema; anything here other than those indexes is a missing migration.
+        continue-on-error: true
+        env:
+          SHADOW_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/shadow
+        run: |
+          psql "$DATABASE_URL" -c "CREATE DATABASE shadow;" || true
+          npx prisma migrate diff \
+            --from-migrations prisma/migrations \
+            --to-schema prisma/schema || true
+
+      - name: Confirm full-text search uses its index
+        run: |
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -c "
+            SET enable_seqscan = off;
+            EXPLAIN (COSTS OFF)
+            SELECT id FROM companies c
+            WHERE (
+              setweight(to_tsvector('english', coalesce(c.name, '')), 'A') ||
+              setweight(to_tsvector('english', coalesce(c.company_number, '')), 'A') ||
+              setweight(to_tsvector('english', coalesce(c.town, '')), 'B') ||
+              setweight(to_tsvector('english', coalesce(c.postcode, '')), 'B') ||
+              setweight(to_tsvector('english', coalesce(immutable_array_to_string(c.previous_names, ' '), '')), 'C')
+            ) @@ websearch_to_tsquery('english', 'construction');
+          " | grep -q "companies_fts_idx" && echo "Index is used."

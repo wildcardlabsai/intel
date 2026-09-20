@@ -25,5 +25,11 @@ export default defineConfig({
   },
   datasource: {
     url: process.env.DIRECT_URL ? env("DIRECT_URL") : env("DATABASE_URL"),
+    // Only needed to diff the migrations directory against the schema, which
+    // CI does to catch a schema edited without a matching migration. Migrate
+    // creates and drops this database itself; never point it at real data.
+    ...(process.env.SHADOW_DATABASE_URL
+      ? { shadowDatabaseUrl: env("SHADOW_DATABASE_URL") }
+      : {}),
   },
 });

@@ -3,8 +3,13 @@
 -- These objects are maintained by hand rather than by `prisma migrate dev`,
 -- because Prisma has no first-class representation for expression indexes.
 -- They are deliberately implemented as EXPRESSION indexes (not generated
--- columns) so that the Prisma schema remains the single source of truth for
--- columns and `prisma migrate diff` never reports drift.
+-- columns) so the Prisma schema stays the single source of truth for columns.
+--
+-- The trade-off: `prisma migrate diff` cannot see these indexes in the schema,
+-- so it reports them as drift for ever. CI therefore gates on
+-- `prisma migrate status` and prints the diff as information only. When you
+-- read that diff, anything OTHER than the indexes below is a missing
+-- migration.
 --
 -- The search layer in src/lib/search/ builds tsquery expressions
 -- that match these index expressions exactly. If you change an expression

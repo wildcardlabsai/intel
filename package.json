@@ -18,7 +18,8 @@
     "db:studio": "prisma studio",
     "db:seed:reference": "tsx scripts/seed-reference-data.ts",
     "verify": "npm run typecheck && npm run lint && npm run test",
-    "db:seed:dev": "tsx scripts/seed-dev-fixtures.ts"
+    "db:seed:dev": "tsx scripts/seed-dev-fixtures.ts",
+    "db:deploy": "prisma migrate deploy"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.127.0",
@@ -74,5 +75,8 @@
     "vite": "^8.3.0",
     "vite-tsconfig-paths": "^6.1.1",
     "vitest": "^5.0.1"
+  },
+  "engines": {
+    "node": ">=22.0.0"
   }
 }

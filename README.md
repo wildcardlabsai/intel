@@ -40,6 +40,14 @@ source registry — and no companies, contracts, applications or funding schemes
 
 ---
 
+## Deploying
+
+See **[DEPLOYMENT.md](DEPLOYMENT.md)** for the full runbook: Supabase, Vercel,
+the first administrator, the first real ingest, and the optional integrations
+in the order they can safely be added.
+
+---
+
 ## Previewing without any external service
 
 The application runs against nothing but a PostgreSQL database. To see it
