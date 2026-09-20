@@ -1,24 +1,43 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
 
 import { requireUser } from "@/lib/auth/session";
 import { checkUsage, getEntitlements, recordUsage } from "@/lib/billing/plans";
 import { prisma } from "@/lib/db/prisma";
+import { companyExportDataset } from "@/lib/export/companies";
+import { exportFilename, toCsv } from "@/lib/export/dataset";
+import { toPdf } from "@/lib/export/pdf";
+import { toXlsx } from "@/lib/export/xlsx";
+import { logger } from "@/lib/logger";
 import { searchCompanies } from "@/lib/search/companies";
 import { companyFilterSchema } from "@/lib/search/types";
-import { logger } from "@/lib/logger";
 
 /**
- * CSV export of a company search.
+ * Company search export, in CSV, XLSX or PDF.
  *
- * Exports are metered and capped by plan. Every row keeps its source and
- * source URL so exported data stays attributable once it leaves the platform,
- * as the Open Government Licence requires.
+ * All three formats are rendered from one dataset description, so the same
+ * search always produces the same rows whichever format is chosen. Exports are
+ * metered and capped by plan, and every row keeps its source and source URL so
+ * exported data stays attributable once it leaves the platform, as the Open
+ * Government Licence requires.
  */
 
+export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
 
-const MAX_ROWS = 10_000;
+const MAX_ROWS_BULK = 10_000;
+const MAX_ROWS_STANDARD = 1_000;
+/** A PDF of a very long table is unusable, and slow to render. */
+const MAX_ROWS_PDF = 2_000;
+
+const formatSchema = z.enum(["csv", "xlsx", "pdf"]).default("csv");
+
+const CONTENT_TYPES = {
+  csv: "text/csv; charset=utf-8",
+  xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  pdf: "application/pdf",
+} as const;
 
 export async function GET(request: Request) {
   const user = await requireUser("/dashboard/exports");
@@ -40,6 +59,15 @@ export async function GET(request: Request) {
   }
 
   const url = new URL(request.url);
+
+  const format = formatSchema.safeParse(url.searchParams.get("format") ?? "csv");
+  if (!format.success) {
+    return NextResponse.json(
+      { error: "invalid_format", message: "Supported formats are csv, xlsx and pdf." },
+      { status: 400 }
+    );
+  }
+
   const parsed = companyFilterSchema.safeParse({
     q: url.searchParams.get("q") ?? undefined,
     region: url.searchParams.get("region") ?? undefined,
@@ -55,55 +83,48 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "invalid_parameters" }, { status: 400 });
   }
 
-  const requested = Number(url.searchParams.get("limit") ?? 1_000);
+  const ceiling = Math.min(
+    entitlements.limits.bulkExport ? MAX_ROWS_BULK : MAX_ROWS_STANDARD,
+    format.data === "pdf" ? MAX_ROWS_PDF : Number.MAX_SAFE_INTEGER
+  );
+  const requested = Number(url.searchParams.get("limit") ?? MAX_ROWS_STANDARD);
   const limit = Math.min(
-    Number.isFinite(requested) ? Math.max(requested, 1) : 1_000,
-    entitlements.limits.bulkExport ? MAX_ROWS : 1_000
+    Number.isFinite(requested) ? Math.max(requested, 1) : MAX_ROWS_STANDARD,
+    ceiling
   );
 
   const results = await searchCompanies(parsed.data, { page: 1, perPage: limit });
 
-  const header = [
-    "company_number",
-    "name",
-    "status",
-    "incorporated_on",
-    "town",
-    "postcode",
-    "local_authority",
-    "region",
-    "sic_codes",
-    "size_band",
-    "latitude",
-    "longitude",
-    "source",
-    "source_url",
-    "last_updated_at",
-  ];
+  const dataset = companyExportDataset(results.items, parsed.data, {
+    // Only say the export was capped when rows were actually left behind.
+    truncatedAt: results.total > results.items.length ? limit : undefined,
+  });
 
-  const rows = results.items.map((company) => [
-    company.companyNumber,
-    company.name,
-    company.status,
-    company.incorporatedOn?.toISOString().slice(0, 10) ?? "",
-    company.town ?? "",
-    company.postcode ?? "",
-    company.localAuthorityName ?? "",
-    company.region ?? "",
-    company.sicCodes.join(" "),
-    company.sizeBand ?? "",
-    company.latitude?.toString() ?? "",
-    company.longitude?.toString() ?? "",
-    company.source,
-    company.sourceUrl ?? "",
-    company.lastUpdatedAt.toISOString(),
-  ]);
-
-  const csv = [header, ...rows].map(toCsvRow).join("\r\n");
+  let body: string | Buffer;
+  try {
+    if (format.data === "xlsx") {
+      body = await toXlsx(dataset);
+    } else if (format.data === "pdf") {
+      body = Buffer.from(await toPdf(dataset));
+    } else {
+      body = toCsv(dataset);
+    }
+  } catch (error) {
+    logger.error("export rendering failed", error, {
+      userId: user.id,
+      format: format.data,
+      rows: dataset.rows.length,
+    });
+    return NextResponse.json(
+      { error: "export_failed", message: "The export could not be generated." },
+      { status: 500 }
+    );
+  }
 
   await recordUsage(user, "EXPORT", {
     entity: "company",
-    rows: rows.length,
+    format: format.data,
+    rows: dataset.rows.length,
     filters: parsed.data.q ?? null,
   });
 
@@ -112,32 +133,21 @@ export async function GET(request: Request) {
       actorUserId: user.id,
       actorEmail: user.email,
       action: "export.companies",
-      metadata: { rows: rows.length },
+      metadata: { rows: dataset.rows.length, format: format.data },
     },
   });
 
-  logger.info("csv export", { userId: user.id, rows: rows.length });
+  logger.info("company export", {
+    userId: user.id,
+    rows: dataset.rows.length,
+    format: format.data,
+  });
 
-  const filename = `cymru-intelligence-companies-${new Date().toISOString().slice(0, 10)}.csv`;
-
-  return new NextResponse(csv, {
+  return new NextResponse(body as BodyInit, {
     headers: {
-      "content-type": "text/csv; charset=utf-8",
-      "content-disposition": `attachment; filename="${filename}"`,
+      "content-type": CONTENT_TYPES[format.data],
+      "content-disposition": `attachment; filename="${exportFilename(dataset, format.data)}"`,
       "cache-control": "no-store",
     },
   });
-}
-
-/**
- * RFC 4180 quoting. A leading =, +, - or @ is prefixed with a single quote so
- * a spreadsheet cannot interpret an exported value as a formula.
- */
-function toCsvRow(values: string[]): string {
-  return values
-    .map((value) => {
-      const safe = /^[=+\-@]/.test(value) ? `'${value}` : value;
-      return `"${safe.replace(/"/g, '""')}"`;
-    })
-    .join(",");
 }

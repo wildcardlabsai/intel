@@ -19,6 +19,12 @@ import { formatNumber } from "@/lib/utils";
 export const metadata: Metadata = { title: "Export data | Cymru Intelligence" };
 export const dynamic = "force-dynamic";
 
+const EXPORT_FORMATS = [
+  { value: "csv", label: "Export CSV", limit: 1000, primary: true },
+  { value: "xlsx", label: "Export spreadsheet", limit: 1000, primary: false },
+  { value: "pdf", label: "Export PDF", limit: 500, primary: false },
+] as const;
+
 export default async function ExportsPage() {
   const user = await requireUser("/dashboard/exports");
 
@@ -39,7 +45,7 @@ export default async function ExportsPage() {
       <PageHeader
         eyebrow="Workspace"
         title="Export data"
-        description="Download search results as CSV. Every row keeps its source and source URL so the data stays attributable."
+        description="Download search results as CSV, a spreadsheet or a PDF. Every row keeps its source and source URL so the data stays attributable."
       />
 
       {!included ? (
@@ -51,7 +57,7 @@ export default async function ExportsPage() {
             </h3>
             <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted">
               Your {entitlements.planName} plan does not include data export. Upgrade to download
-              search results as CSV.
+              search results as CSV, a spreadsheet or a PDF.
             </p>
             <Button asChild variant="outline" className="mt-4">
               <Link href="/dashboard/billing">View plans</Link>
@@ -81,14 +87,25 @@ export default async function ExportsPage() {
                 search page, then export exactly what you see.
               </p>
             </CardHeader>
-            <CardContent className="flex flex-wrap gap-3">
-              <Button asChild>
-                <a href="/api/export/companies?limit=1000">
-                  <Download className="h-4 w-4" />
-                  Export companies (CSV)
-                </a>
-              </Button>
-              <Button asChild variant="outline">
+            <CardContent className="space-y-3">
+              <div className="flex flex-wrap gap-3">
+                {EXPORT_FORMATS.map((format) => (
+                  <Button key={format.value} asChild variant={format.primary ? "primary" : "outline"}>
+                    <a
+                      href={`/api/export/companies?format=${format.value}&limit=${format.limit}`}
+                    >
+                      <Download className="h-4 w-4" />
+                      {format.label}
+                    </a>
+                  </Button>
+                ))}
+              </div>
+              <p className="text-xs leading-relaxed text-muted">
+                CSV and the spreadsheet carry all 15 columns. The PDF is a printable summary of the
+                10 that fit a page legibly, capped at 2,000 rows, and states which columns it leaves
+                out.
+              </p>
+              <Button asChild variant="ghost" size="sm">
                 <Link href="/dashboard/companies">Build a filtered search first</Link>
               </Button>
             </CardContent>
