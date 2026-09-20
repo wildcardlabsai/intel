@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Search } from "lucide-react";
 
+import { AskBox } from "@/app/dashboard/companies/ask-box";
 import { CompanyFiltersPanel } from "@/app/dashboard/companies/filters";
 import { SaveSearchButton } from "@/components/dashboard/save-search-button";
 import { AwaitingSync, NotConfigured, SourceFooter } from "@/components/source-attribution";
@@ -115,6 +116,15 @@ export default async function CompanySearchPage({
       ) : totalCompanies === 0 ? (
         <AwaitingSync what="companies" sourceName="Companies House" />
       ) : (
+        <>
+        <AskBox
+          examples={[
+            "Active construction firms in Gwynedd",
+            "Companies in Cardiff registered since 2022",
+            "Dissolved manufacturers in North Wales",
+          ]}
+        />
+
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-[280px_1fr]">
           <CompanyFiltersPanel
             localAuthorities={localAuthorities}
@@ -220,6 +230,7 @@ export default async function CompanySearchPage({
             )}
           </div>
         </div>
+        </>
       )}
 
       <SourceFooter sources={["companies_house", "postcodes_io"]} />
