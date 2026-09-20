@@ -1,7 +1,7 @@
 const FOOTER_LINKS = [
   { label: "About", href: "#about" },
   { label: "Data", href: "#data" },
-  { label: "Insights", href: "#insights" },
+  { label: "Insights", href: "/insights" },
   { label: "Contact", href: "#contact" },
 ];
 

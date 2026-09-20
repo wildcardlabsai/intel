@@ -12,6 +12,9 @@ import {
   Td,
   Th,
 } from "@/components/ui/primitives";
+import Link from "next/link";
+
+import { Button } from "@/components/ui/button";
 import { requireAdmin } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/prisma";
 import { formatDate, humanise } from "@/lib/utils";
@@ -33,12 +36,22 @@ export default async function AdminInsightsPage() {
         eyebrow="Administration"
         title="Insights"
         description="Editorial pieces backed by database queries. Every figure quoted in an insight records the query behind it, so published statistics stay reproducible."
+        actions={
+          <Button asChild size="sm">
+            <Link href="/admin/insights/new">New insight</Link>
+          </Button>
+        }
       />
 
       {insights.length === 0 ? (
         <EmptyState
           title="No insights yet"
           description="Insights are written against live data and store the queries behind every figure. None have been created."
+          action={
+            <Button asChild>
+              <Link href="/admin/insights/new">Write the first one</Link>
+            </Button>
+          }
         />
       ) : (
         <Card>
@@ -57,7 +70,12 @@ export default async function AdminInsightsPage() {
                 {insights.map((insight) => (
                   <tr key={insight.id}>
                     <Td>
-                      <p className="font-medium text-ink-900">{insight.title}</p>
+                      <Link
+                        href={`/admin/insights/${insight.id}`}
+                        className="font-medium text-ink-900 hover:text-accent-green"
+                      >
+                        {insight.title}
+                      </Link>
                       <p className="font-mono text-xs text-muted">{insight.slug}</p>
                     </Td>
                     <Td>
